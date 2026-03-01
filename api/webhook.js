@@ -1,11 +1,12 @@
-export default async function handler(req, res) {
+export default function handler(req, res) {
+  const VERIFY_TOKEN = "fortvix_verify_2026";
+
   if (req.method === "GET") {
-    const verify_token = process.env.WHATSAPP_VERIFY_TOKEN;
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
-    if (mode && token === verify_token) {
+    if (mode === "subscribe" && token === VERIFY_TOKEN) {
       return res.status(200).send(challenge);
     } else {
       return res.status(403).send("Verification failed");
@@ -17,5 +18,5 @@ export default async function handler(req, res) {
     return res.status(200).json({ status: "ok" });
   }
 
-  res.status(405).end();
+  return res.status(405).end();
 }

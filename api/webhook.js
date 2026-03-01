@@ -14,9 +14,9 @@ export default function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    console.log("Webhook recebido:", req.body);
-    return res.status(200).json({ status: "ok" });
-  }
+  console.log("Webhook completo:", JSON.stringify(req.body, null, 2));
+  return res.status(200).json({ status: "ok" });
+}
 
   return res.status(405).end();
 }

@@ -19,7 +19,7 @@ async function sendWhatsAppMessage(to, message) {
     text: { body: message },
   };
 
-  await fetch(url, {
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -27,6 +27,9 @@ async function sendWhatsAppMessage(to, message) {
     },
     body: JSON.stringify(payload),
   });
+
+  const data = await response.json();
+  console.log("WhatsApp response:", data);
 }
 
 function buildSystemPrompt() {

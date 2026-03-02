@@ -1,97 +1,99 @@
-import OpenAI from "openai";
-
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
-const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
-const openai = new OpenAI({
-  apiKey: OPENAI_API_KEY,
-});
-
-async function sendWhatsAppMessage(to, message) {
-  const url = `https://graph.facebook.com/v19.0/${PHONE_NUMBER_ID}/messages`;
-
-  const payload = {
-    messaging_product: "whatsapp",
-    to,
-    type: "text",
-    text: { body: message },
-  };
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const data = await response.json();
-  console.log("WhatsApp response:", data);
-}
-
-function buildSystemPrompt() {
-  return `
-Você é o Consultor Estratégico Oficial da Casa Balanço do Mar, multipropriedade em Prado/BA.
-
-Seu objetivo é converter leads qualificados em fechamento com atendimento humano.
-
-REGRAS:
-
-- Nunca enviar PDF.
-- Nunca enviar contrato.
-- Documentos apenas no fechamento com humano.
-- Sempre conduzir para ligação ou validação humana.
-- Pagamento à vista possui prioridade estratégica na escolha das semanas no calendário rotativo.
-- Seja firme, elegante e direto.
-- Sempre finalizar com pergunta.
-`;
-}
-
-async function generateAgentReply(userMessage) {
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: buildSystemPrompt() },
-      { role: "user", content: userMessage }
-    ],
-    temperature: 0.7,
-  });
-
-  return response.choices[0].message.content;
-}
-
 export default async function handler(req, res) {
+  // ===============================
+  // 🔐 VERIFICAÇÃO DO WEBHOOK
+  // ===============================
   if (req.method === "GET") {
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
-    if (mode === "subscribe" && token === VERIFY_TOKEN) {
+    if (
+      mode === "subscribe" &&
+      token === process.env.WHATSAPP_VERIFY_TOKEN
+    ) {
       return res.status(200).send(challenge);
     } else {
-      return res.status(403).send("Verification failed");
+      return res.status(403).send("Erro de verificação");
     }
   }
 
+  // ===============================
+  // 📩 RECEBER MENSAGEM
+  // ===============================
   if (req.method === "POST") {
-    const body = req.body;
+    try {
+      const body = req.body;
 
-    const message = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+      const message =
+        body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
 
-    if (message && message.text) {
+      if (!message) {
+        return res.status(200).send("Evento recebido");
+      }
+
       const from = message.from;
-      const userMessage = message.text.body;
+      const userText = message.text?.body;
 
-      const agentReply = await generateAgentReply(userMessage);
+      // ===============================
+      // 🤖 CHAMADA OPENAI
+      // ===============================
+      const openaiResponse = await fetch(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content:
+                  "Você é o assistente oficial da Casa Balanço do Mar. Seja elegante, objetivo e persuasivo na venda de frações.",
+              },
+              {
+                role: "user",
+                content: userText,
+              },
+            ],
+          }),
+        }
+      );
 
-      await sendWhatsAppMessage(from, agentReply);
+      const openaiData = await openaiResponse.json();
+
+      const aiText =
+        openaiData.choices?.[0]?.message?.content ||
+        "Olá! Como posso ajudar você hoje?";
+
+      // ===============================
+      // 📤 ENVIAR RESPOSTA WHATSAPP
+      // ===============================
+      await fetch(
+        `https://graph.facebook.com/v19.0/${process.env.PHONE_NUMBER_ID}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: from,
+            type: "text",
+            text: { body: aiText },
+          }),
+        }
+      );
+
+      return res.status(200).send("Mensagem enviada");
+    } catch (error) {
+      console.error("Erro:", error);
+      return res.status(500).send("Erro interno");
     }
-
-    return res.status(200).json({ status: "ok" });
   }
 
-  return res.status(405).end();
+  return res.status(405).send("Método não permitido");
 }

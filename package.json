@@ -1,8 +1,11 @@
 {
   "name": "casa-balanco-whatsapp",
   "version": "1.0.0",
+  "description": "WhatsApp Agent Casa Balanço do Mar",
+  "main": "index.js",
   "type": "module",
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.0"
+    "@supabase/supabase-js": "^2.39.3",
+    "openai": "^4.28.0"
   }
 }

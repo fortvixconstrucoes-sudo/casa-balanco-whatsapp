@@ -1,8 +1,9 @@
 {
-  "name": "casa-balanco-whatsapp",
+  "name": "casa-balanco-whatsapp-api",
   "version": "1.0.0",
+  "private": true,
   "type": "module",
   "dependencies": {
-    "openai": "^4.56.0"
+    "@supabase/supabase-js": "^2.39.0"
   }
 }

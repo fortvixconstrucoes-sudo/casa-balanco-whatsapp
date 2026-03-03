@@ -1,150 +1,193 @@
-export default async function handler(req, res) {
-  // ===============================
-  // 🔐 VERIFICAÇÃO DO WEBHOOK (META)
-  // ===============================
-  if (req.method === "GET") {
-    const mode = req.query["hub.mode"];
-    const token = req.query["hub.verify_token"];
-    const challenge = req.query["hub.challenge"];
+import { createClient } from "@supabase/supabase-js";
 
-    if (mode === "subscribe" && token === process.env.WHATSAPP_VERIFY_TOKEN) {
-      return res.status(200).send(challenge);
-    }
-    return res.status(403).send("Verification failed");
-  }
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
 
-  // ===============================
-  // 📩 RECEBER EVENTOS (WHATSAPP)
-  // ===============================
-  if (req.method === "POST") {
-    try {
-      const body = req.body;
+const AI_SYSTEM_PROMPT = `
+Você é consultor comercial humano da Casa Balanço do Mar, Prado/BA.
 
-      const change = body?.entry?.[0]?.changes?.[0]?.value;
-      const message = change?.messages?.[0];
+OBJETIVO:
+Conduzir para apresentação ou venda da fração.
 
-      // Se não for mensagem (status, etc.), apenas confirma
-      if (!message) return res.status(200).send("No message");
+REGRAS:
+- Respostas curtas (máximo 2 frases).
+- Tom elegante, natural e seguro.
+- Nunca repetir perguntas já feitas.
+- Nunca perguntar o nome se já foi informado.
+- Nunca usar "senhor" ou "senhora".
+- Sempre finalizar conduzindo para o próximo passo.
 
-      const from = message.from;
+INFORMAÇÕES FIXAS:
+- 26 frações
+- 2 semanas por ano (1 alta + 1 baixa)
+- Valor oficial: R$ 64.890
+- Condição especial à vista: R$ 59.890
+- Prioridade no calendário para pagamento à vista
+- Experiência: R$ 1.000 por diária, mínimo 2 noites, até 6 hóspedes
+- Manutenção estimada: R$ 250/mês
 
-      // Nome do contato (quando disponível no payload)
-      const waName =
-        change?.contacts?.[0]?.profile?.name ||
-        change?.contacts?.[0]?.wa_id ||
-        "";
+Registro:
+O registro definitivo está em processo e será concluído em até 12 meses, sem impedir o uso contratual.
 
-      // Texto recebido
-      const userText = message?.text?.body?.trim() || "";
+Turismo:
+Valorizar localização, restaurantes e passeios, sem prometer serviços inclusos.
 
-      // Se não for texto (imagem/áudio), responda de forma curta
-      if (!userText) {
-        await sendWhatsAppText(
-          from,
-          `Perfeito, recebi 👍 Para eu te atender direitinho, me diz seu nome?`,
-          process.env
-        );
-        return res.status(200).send("Non-text handled");
-      }
-
-      // ===============================
-      // 🧠 PROMPT PREMIUM (ATENDIMENTO + CONVERSÃO)
-      // ===============================
-      const SYSTEM_PROMPT = `
-Você é um consultor comercial humano (NÃO robô) da Casa Balanço do Mar, Prado/BA.
-Seu objetivo é converter para: (1) apresentação e (2) venda da fração, com cordialidade, gentileza e sedução elegante.
-
-REGRAS OBRIGATÓRIAS
-- Responda em no máximo 1 a 3 frases curtas.
-- Tom humano, elegante e confiante.
-- NUNCA use “senhor”, “senhora”, “amigo”, “querida”.
-- Se não souber o nome, PERGUNTE: “Com quem eu tenho o prazer de falar?”
-- Se souber o nome, use apenas 1 vez por mensagem (sem exagero).
-- NÃO invente informações.
-- NÃO saia do produto (Casa Balanço do Mar / frações / experiência).
-- Sempre finalize com 1 pergunta que avance o próximo passo.
-
-PRODUTO (FIXO)
-- Casa Balanço do Mar (residência premium) com piscina privativa e área gourmet.
-- Modelo de multipropriedade: 26 frações.
-- Cada fração: 2 semanas por ano (1 alta + 1 baixa).
-- Manutenção estimada: R$ 250/mês.
-- Prioridade no calendário rotativo: pagamento À VISTA tem prioridade de escolha.
-- Hospedagem (experiência antes de comprar): R$ 1.000/dia, mínimo 2 diárias, até 6 hóspedes.
-
-PREÇOS (FIXO)
-- Valor oficial: R$ 64.890.
-- Condição especial À VISTA: R$ 59.890 (quando você mencionar “à vista”, chame de “condição especial”, não “desconto”).
-- Parcelado existe (não precisa detalhar parcelas sem o cliente pedir).
-
-CONDUTA DE VENDA (MELHORES PRÁTICAS)
-- Primeira mensagem: pedir nome (se não tiver).
-- Depois: oferecer 2 caminhos (multipropriedade OU experiência).
-- Se pedir preço: ancorar valor oficial e citar condição especial à vista + prioridade calendário.
-- Se pedir hospedagem: vender como “experiência limitada antes da venda total das frações”.
-- Se vier objeção (“caro”): responder curto, reforçar padrão + exclusividade e perguntar se prefere entender fração ou experiência.
-
-IMPORTANTE
-- Nunca prometa registro imediato. Se perguntarem registro, diga: “o registro definitivo está em processo, mas o uso e as regras já são contratuais”.
+Nunca inventar informações.
 `;
 
-      // Pequeno contexto para o modelo (nome do WhatsApp se existir)
-      const USER_CONTEXT = waName
-        ? `O nome do contato no WhatsApp é: ${waName}`
-        : `O nome do contato ainda não foi informado.`;
+export default async function handler(req, res) {
+  if (req.method !== "POST") return res.status(405).send("Only POST");
 
-      const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          temperature: 0.35,
-          max_tokens: 160,
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "system", content: USER_CONTEXT },
-            { role: "user", content: userText },
-          ],
-        }),
-      });
+  const body = req.body;
+  const change = body?.entry?.[0]?.changes?.[0]?.value;
+  const message = change?.messages?.[0];
 
-      const openaiData = await openaiResponse.json();
-      const aiText =
-        openaiData?.choices?.[0]?.message?.content?.trim() ||
-        "Olá! Com quem eu tenho o prazer de falar?";
+  if (!message) return res.status(200).send("No message");
 
-      await sendWhatsAppText(from, aiText, process.env);
+  const phone = message.from;
+  const userText = message.text?.body?.trim() || "";
+  const lowerText = userText.toLowerCase();
 
-      return res.status(200).send("Message processed");
-    } catch (error) {
-      console.error("Webhook error:", error);
-      return res.status(500).send("Internal error");
+  let { data: lead } = await supabase
+    .from("leads_whatsapp")
+    .select("*")
+    .eq("phone", phone)
+    .single();
+
+  if (!lead) {
+    const { data } = await supabase
+      .from("leads_whatsapp")
+      .insert([{ phone, stage: "ASK_NAME" }])
+      .select()
+      .single();
+
+    lead = data;
+  }
+
+  let reply = "";
+
+  // ===============================
+  // 🎯 CONTROLE DE ESTADO
+  // ===============================
+
+  if (lead.stage === "ASK_NAME") {
+    reply = "Com quem eu tenho o prazer de falar?";
+    await supabase
+      .from("leads_whatsapp")
+      .update({ stage: "WAIT_NAME" })
+      .eq("phone", phone);
+  }
+
+  else if (lead.stage === "WAIT_NAME") {
+    await supabase
+      .from("leads_whatsapp")
+      .update({ name: userText, stage: "OFFER" })
+      .eq("phone", phone);
+
+    reply = `Prazer, ${userText}. Você quer conhecer a multipropriedade ou prefere viver a experiência primeiro?`;
+  }
+
+  else if (lead.stage === "OFFER") {
+
+    if (
+      lowerText.includes("restaurante") ||
+      lowerText.includes("passeio") ||
+      lowerText.includes("turismo") ||
+      lowerText.includes("praia") ||
+      lowerText.includes("instagram") ||
+      lowerText.includes("região")
+    ) {
+      await supabase
+        .from("leads_whatsapp")
+        .update({ stage: "REGIONAL" })
+        .eq("phone", phone);
+
+      reply = "A Casa está na quadra do mar, cercada pelos melhores restaurantes e passeios de Prado. Você prefere algo mais gastronômico ou mais natureza quando viaja?";
+    }
+
+    else if (lowerText.includes("multi")) {
+      await supabase
+        .from("leads_whatsapp")
+        .update({ stage: "MULTI" })
+        .eq("phone", phone);
+
+      reply = "São 2 semanas por ano em uma das 26 frações exclusivas. Valor R$ 64.890, com condição especial à vista por R$ 59.890 e prioridade no calendário. É para uso da família ou investimento?";
+    }
+
+    else if (
+      lowerText.includes("hosped") ||
+      lowerText.includes("diária")
+    ) {
+      await supabase
+        .from("leads_whatsapp")
+        .update({ stage: "HOSTING" })
+        .eq("phone", phone);
+
+      reply = "A experiência custa R$ 1.000 por diária, mínimo 2 noites, até 6 hóspedes. Qual período você tem interesse?";
+    }
+
+    else {
+      reply = "Você prefere conhecer a multipropriedade ou viver a experiência primeiro?";
     }
   }
 
-  return res.status(405).send("Method not allowed");
-}
+  else if (lead.stage === "REGIONAL") {
+    reply = "Prado tem praias preservadas, gastronomia excelente e passeios incríveis. Você imagina usar mais em família ou também como investimento?";
+  }
 
-// ===============================
-// ✅ ENVIO DE MENSAGEM WHATSAPP
-// ===============================
-async function sendWhatsAppText(to, text, env) {
-  const url = `https://graph.facebook.com/v19.0/${env.PHONE_NUMBER_ID}/messages`;
+  else if (lead.stage === "MULTI") {
+    reply = "Posso te enviar a apresentação completa agora. Prefere receber aqui ou quer agendar uma ligação rápida?";
+  }
 
-  await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to,
-      type: "text",
-      text: { body: text },
-    }),
-  });
+  else if (lead.stage === "HOSTING") {
+    reply = "Me diga as datas desejadas e já verifico disponibilidade para você.";
+  }
+
+  else {
+    // Fallback OpenAI inteligente
+    const ai = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        temperature: 0.3,
+        max_tokens: 120,
+        messages: [
+          { role: "system", content: AI_SYSTEM_PROMPT },
+          { role: "user", content: userText }
+        ],
+      }),
+    });
+
+    const data = await ai.json();
+    reply = data?.choices?.[0]?.message?.content || "Perfeito. Me conta um pouco mais sobre o que você procura.";
+  }
+
+  // ===============================
+  // 📤 ENVIO WHATSAPP
+  // ===============================
+
+  await fetch(
+    `https://graph.facebook.com/v19.0/${process.env.PHONE_NUMBER_ID}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "text",
+        text: { body: reply },
+      }),
+    }
+  );
+
+  return res.status(200).send("ok");
 }

@@ -1,2 +1,2 @@
 Atualização para novo deploy
-deploy trigger
+deploy trigger 

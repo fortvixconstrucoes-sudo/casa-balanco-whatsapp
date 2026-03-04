@@ -155,16 +155,25 @@ Fluxo ideal:
 5 explicar multipropriedade
 6 gerar desejo de conhecer
 
-PRODUTO
+DADOS DO PRODUTO
 
 Casa Balanço do Mar
-Prado - Bahia
+Prado – Bahia
 
-Casa de praia exclusiva em modelo de multipropriedade.
+Casa Premium para até 6 hóspedes.
 
 Cada fração dá direito a:
-
 2 semanas por ano.
+
+Valor da fração:
+R$ 64.890
+
+Condição:
+Entrada R$ 7.290
++ 60x de R$ 960
+OU
+Entrada R$ 7.290
++ 48x de R$ 1200
 
 Valor à vista:
 
@@ -173,6 +182,10 @@ Valor à vista:
 Se a pessoa disser "quero saber mais":
 
 explique em poucas linhas e faça uma pergunta.
+
+Sempre explique de forma simples e natural.
+Nunca diga para enviar PDF.
+Sempre conduza a conversa com perguntas curtas.
 
 EXEMPLO IDEAL
 

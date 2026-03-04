@@ -1,181 +1,204 @@
-import { createClient } from "@supabase/supabase-js";
-import OpenAI from "openai";
+import axios from "axios"
 
-const supabase = createClient(
-process.env.SUPABASE_URL,
-process.env.SUPABASE_KEY
-);
+const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN
+const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN
 
-const openai = new OpenAI({
-apiKey: process.env.OPENAI_API_KEY
-});
+async function sendWhatsAppMessage(to, message) {
 
-export default async function handler(req,res){
+  try {
 
-if(req.method !== "POST"){
-return res.status(200).send("ok")
+    await axios.post(
+      `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to: to,
+        type: "text",
+        text: {
+          body: message
+        }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+          "Content-Type": "application/json"
+        }
+      }
+    )
+
+  } catch (error) {
+
+    console.log("erro envio whatsapp", error.response?.data || error)
+
+  }
 }
 
-try{
+async function askAI(message) {
 
-const body = req.body
+  try {
 
-const message =
-body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]
+    const response = await axios.post(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        model: "gpt-4o-mini",
+        temperature: 0.7,
+        messages: [
+          {
+            role: "system",
+            content: `
+Você é um concierge consultivo da Casa Balanço do Mar em Prado Bahia.
 
-if(!message){
-return res.status(200).send("no message")
-}
+Seu papel não é apenas responder perguntas.
+Seu papel é conduzir a conversa com inteligência emocional, influência positiva e mentalidade de prosperidade.
 
-const phone = message.from
-const text = message.text?.body || ""
+Você utiliza naturalmente princípios de:
 
-if(!phone || !text){
-return res.status(200).send("invalid")
-}
+• Como Fazer Amigos e Influenciar Pessoas
+• Quem Pensa Enriquece
+• Mais Esperto que o Diabo
+• Os Segredos da Mente Milionária
+• O Poder do Subconsciente
 
-let {data:lead} = await supabase
-.from("leads")
-.select("*")
-.eq("phone",phone)
-.maybeSingle()
+Mas nunca cite os livros.
 
-if(!lead){
+Seu estilo de conversa é:
 
-const {data:newLead} = await supabase
-.from("leads")
-.insert({
-phone:phone,
-stage:"novo",
-history:[],
-last_message:new Date()
-})
-.select()
-.single()
+humano
+calmo
+seguro
+elegante
+curto
 
-lead=newLead
-
-}
-
-let stage = lead.stage || "novo"
-let history = lead.history || []
-let name = lead.name || null
-
-history.push({
-role:"user",
-content:text
-})
-
-const systemPrompt = `
-
-Você é concierge da Casa Balanço do Mar em Prado Bahia.
-
-Seu objetivo é conversar de forma humana, educada e natural.
-
-Regras obrigatórias:
-
-Nunca responda com textos longos.
-
-Nunca repita perguntas.
+Nunca escreva textos longos.
 
 Sempre responda em até 4 linhas.
 
-Se a pessoa disser apenas "oi" ou "olá":
+Sempre termine com uma pergunta que mantenha a conversa viva.
 
-Cumprimente com gentileza e peça o nome.
+PRINCÍPIOS
 
-Use técnicas de influência:
-
-Mostre interesse verdadeiro.
-
+CONEXÃO HUMANA
 Use o nome da pessoa quando souber.
+Demonstre interesse genuíno.
+Valorize a opinião da pessoa.
 
-Faça perguntas simples.
+MENTALIDADE DE PROSPERIDADE
+Mostre que experiências e patrimônio caminham juntos.
 
-Nunca pareça robô.
+CLAREZA DE DESEJO
+Ajude a pessoa imaginar descanso, família ou investimento.
 
-Nunca despeje informações.
+DECISÃO
+Sempre conduza para o próximo passo da conversa.
 
-Conduza a conversa naturalmente.
+SEM PRESSÃO
+Nunca pareça insistente.
 
-Produto:
+PRODUTO
 
-Multipropriedade Casa Balanço do Mar.
+Casa Balanço do Mar
+Multipropriedade em Prado Bahia.
 
 Valor à vista: 59.890.
 
-Pagamento à vista tem prioridade de escolha no calendário anual.
+Pagamento à vista tem prioridade na escolha das semanas.
 
-Se perceber interesse:
+OBJETIVO
 
-Convide para receber apresentação ou áudio explicativo.
+1 entender o perfil da pessoa
+2 criar conexão
+3 despertar interesse
+4 conduzir para apresentação da casa
 
+Se a pessoa disser apenas "oi":
+
+cumprimente e pergunte algo simples que avance a conversa.
 `
+          },
+          {
+            role: "user",
+            content: message
+          }
+        ]
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
+        }
+      }
+    )
 
-const completion = await openai.chat.completions.create({
+    return response.data.choices[0].message.content
 
-model:"gpt-4o-mini",
+  } catch (error) {
 
-temperature:0.7,
+    console.log("erro openai", error.response?.data || error)
 
-messages:[
-{role:"system",content:systemPrompt},
-...history
-]
+    return "Desculpe, tive um pequeno problema aqui. Pode repetir sua mensagem?"
 
-})
-
-const reply = completion.choices[0].message.content
-
-history.push({
-role:"assistant",
-content:reply
-})
-
-if(stage === "novo"){
-stage="aguardando_nome"
+  }
 }
 
-if(stage === "aguardando_nome" && !name){
-name=text
-stage="qualificando"
-}
+export default async function handler(req, res) {
 
-await supabase
-.from("leads")
-.update({
-stage:stage,
-name:name,
-history:history,
-last_message:new Date()
-})
-.eq("phone",phone)
+  if (req.method === "GET") {
 
-await fetch(`https://graph.facebook.com/v19.0/${process.env.PHONE_NUMBER_ID}/messages`,{
+    const mode = req.query["hub.mode"]
+    const token = req.query["hub.verify_token"]
+    const challenge = req.query["hub.challenge"]
 
-method:"POST",
+    if (mode && token === VERIFY_TOKEN) {
 
-headers:{
-Authorization:`Bearer ${process.env.WHATSAPP_TOKEN}`,
-"Content-Type":"application/json"
-},
+      return res.status(200).send(challenge)
 
-body:JSON.stringify({
-messaging_product:"whatsapp",
-to:phone,
-text:{body:reply}
-})
+    }
 
-})
+    return res.status(403).send("erro verificação")
 
-return res.status(200).send("ok")
+  }
 
-}catch(err){
+  if (req.method === "POST") {
 
-console.log("erro webhook",err)
+    try {
 
-return res.status(200).send("error")
+      const body = req.body
 
-}
+      const message =
+        body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]
+
+      if (!message) {
+
+        return res.status(200).send("ok")
+
+      }
+
+      const from = message.from
+
+      const text = message?.text?.body
+
+      if (!text) {
+
+        return res.status(200).send("ok")
+
+      }
+
+      const reply = await askAI(text)
+
+      await sendWhatsAppMessage(from, reply)
+
+      return res.status(200).send("ok")
+
+    } catch (error) {
+
+      console.log("erro webhook", error)
+
+      return res.status(200).send("erro webhook")
+
+    }
+  }
+
+  return res.status(405).send("method not allowed")
 
 }

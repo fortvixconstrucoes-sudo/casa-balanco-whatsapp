@@ -6,34 +6,32 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN
 
 
-async function sendWhatsAppMessage(to,message){
+async function sendWhatsAppMessage(to, message){
 
 try{
 
 console.log("ENVIANDO PARA:",to)
 
-await fetch(`https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,{
-
+const response = await fetch(
+`https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
+{
 method:"POST",
-
 headers:{
 "Authorization":`Bearer ${WHATSAPP_TOKEN}`,
 "Content-Type":"application/json"
 },
-
 body:JSON.stringify({
-
 messaging_product:"whatsapp",
 to:to,
 type:"text",
-
-text:{
-body:message
+text:{ body:message }
+})
 }
+)
 
-})
+const data = await response.json()
 
-})
+console.log("RESPOSTA WHATSAPP:",data)
 
 }catch(error){
 

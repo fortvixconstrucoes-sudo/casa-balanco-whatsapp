@@ -2,134 +2,180 @@ import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
+process.env.SUPABASE_URL,
+process.env.SUPABASE_KEY
 );
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+apiKey: process.env.OPENAI_API_KEY
 });
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(200).send("ok");
-  }
+export default async function handler(req,res){
 
-  try {
-    const body = req.body;
-    const message = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+if(req.method !== "POST"){
+return res.status(200).send("ok")
+}
 
-    if (!message) return res.status(200).send("ok");
+try{
 
-    const userText = message.text?.body?.trim();
-    const phone = message.from;
+const body = req.body
 
-    if (!userText) return res.status(200).send("ok");
+const message =
+body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]
 
-    let { data: lead } = await supabase
-      .from("leads")
-      .select("*")
-      .eq("phone", phone)
-      .single();
+if(!message){
+return res.status(200).send("no message")
+}
 
-    if (!lead) {
-      const { data } = await supabase
-        .from("leads")
-        .insert({
-          phone,
-          stage: "novo",
-          history: []
-        })
-        .select()
-        .single();
+const phone = message.from
+const text = message.text?.body || ""
 
-      lead = data;
-    }
+if(!phone || !text){
+return res.status(200).send("invalid")
+}
 
-    let history = lead.history || [];
-    let stage = lead.stage;
-    let name = lead.name;
+let {data:lead} = await supabase
+.from("leads")
+.select("*")
+.eq("phone",phone)
+.maybeSingle()
 
-    // 🔒 BLOQUEIO DE REPETIÇÃO
-    const lastBotMessage = history.length > 0
-      ? history[history.length - 1]
-      : null;
+if(!lead){
 
-    // Atualiza interação
-    await supabase.from("leads").update({
-      last_interaction: new Date(),
-      followup_sent: false
-    }).eq("phone", phone);
+const {data:newLead} = await supabase
+.from("leads")
+.insert({
+phone:phone,
+stage:"novo",
+history:[],
+last_message:new Date()
+})
+.select()
+.single()
 
-    history.push({ role: "user", content: userText });
+lead=newLead
 
-    let systemPrompt = `
-Você é concierge estratégico da Casa Balanço do Mar.
+}
 
-REGRAS ABSOLUTAS:
-- Nunca repita pergunta já feita.
-- Nunca peça o nome se já souber.
-- Nunca volte para estágio anterior.
-- Respostas curtas (máx 4 linhas).
-- Sempre avance a conversa.
-- Use o nome se existir.
-- Seja humano, elegante, gentil.
-- Interesse genuíno.
-- Faça perguntas abertas estratégicas.
-- Valorize a pessoa.
-- Não seja robô.
-`;
+let stage = lead.stage || "novo"
+let history = lead.history || []
+let name = lead.name || null
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      temperature: 0.6,
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...history
-      ]
-    });
+history.push({
+role:"user",
+content:text
+})
 
-    const reply = completion.choices[0].message.content;
+const systemPrompt = `
 
-    history.push({ role: "assistant", content: reply });
+Você é concierge da Casa Balanço do Mar em Prado Bahia.
 
-    // 🔄 CONTROLE DE ESTÁGIO DEFINITIVO
+Seu objetivo é conversar de forma humana, educada e natural.
 
-    if (stage === "novo") {
-      stage = "aguardando_nome";
-    } else if (stage === "aguardando_nome" && !name) {
-      name = userText;
-      stage = "qualificando";
-    } else if (stage === "qualificando") {
-      stage = "apresentacao";
-    }
+Regras obrigatórias:
 
-    await supabase.from("leads").update({
-      history,
-      stage,
-      name
-    }).eq("phone", phone);
+Nunca responda com textos longos.
 
-    await fetch(
-      `https://graph.facebook.com/v19.0/${process.env.PHONE_NUMBER_ID}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: phone,
-          text: { body: reply },
-        }),
-      }
-    );
+Nunca repita perguntas.
 
-    return res.status(200).send("ok");
+Sempre responda em até 4 linhas.
 
-  } catch (err) {
-    console.error(err);
-    return res.status(200).send("error");
-  }
+Se a pessoa disser apenas "oi" ou "olá":
+
+Cumprimente com gentileza e peça o nome.
+
+Use técnicas de influência:
+
+Mostre interesse verdadeiro.
+
+Use o nome da pessoa quando souber.
+
+Faça perguntas simples.
+
+Nunca pareça robô.
+
+Nunca despeje informações.
+
+Conduza a conversa naturalmente.
+
+Produto:
+
+Multipropriedade Casa Balanço do Mar.
+
+Valor à vista: 59.890.
+
+Pagamento à vista tem prioridade de escolha no calendário anual.
+
+Se perceber interesse:
+
+Convide para receber apresentação ou áudio explicativo.
+
+`
+
+const completion = await openai.chat.completions.create({
+
+model:"gpt-4o-mini",
+
+temperature:0.7,
+
+messages:[
+{role:"system",content:systemPrompt},
+...history
+]
+
+})
+
+const reply = completion.choices[0].message.content
+
+history.push({
+role:"assistant",
+content:reply
+})
+
+if(stage === "novo"){
+stage="aguardando_nome"
+}
+
+if(stage === "aguardando_nome" && !name){
+name=text
+stage="qualificando"
+}
+
+await supabase
+.from("leads")
+.update({
+stage:stage,
+name:name,
+history:history,
+last_message:new Date()
+})
+.eq("phone",phone)
+
+await fetch(`https://graph.facebook.com/v19.0/${process.env.PHONE_NUMBER_ID}/messages`,{
+
+method:"POST",
+
+headers:{
+Authorization:`Bearer ${process.env.WHATSAPP_TOKEN}`,
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+messaging_product:"whatsapp",
+to:phone,
+text:{body:reply}
+})
+
+})
+
+return res.status(200).send("ok")
+
+}catch(err){
+
+console.log("erro webhook",err)
+
+return res.status(200).send("error")
+
+}
+
 }

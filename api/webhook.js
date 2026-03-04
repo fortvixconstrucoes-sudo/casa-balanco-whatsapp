@@ -1,204 +1,144 @@
-import axios from "axios"
+export default async function handler(req, res) {
+  // ENV
+  const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
+  const PHONE_NUMBER_ID = process.env.ID_DO_NUMERO_DE_TELEFONE; // seu nome atual na Vercel
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 
-const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN
-const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN
-
-async function sendWhatsAppMessage(to, message) {
-
-  try {
-
-    await axios.post(
-      `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
-      {
-        messaging_product: "whatsapp",
-        to: to,
-        type: "text",
-        text: {
-          body: message
-        }
-      },
-      {
+  // Helpers
+  const sendWhatsAppMessage = async (to, message) => {
+    try {
+      await fetch(`https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`, {
+        method: "POST",
         headers: {
           Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-          "Content-Type": "application/json"
-        }
-      }
-    )
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to,
+          type: "text",
+          text: { body: message },
+        }),
+      });
+    } catch (err) {
+      console.log("erro envio whatsapp", err);
+    }
+  };
 
-  } catch (error) {
+  const askAI = async (userText) => {
+    try {
+      const systemPrompt = `
+Você é um concierge consultivo da Casa Balanço do Mar (Prado/BA) e também um vendedor humano, educado e estratégico.
 
-    console.log("erro envio whatsapp", error.response?.data || error)
+OBJETIVO:
+- Atender bem
+- Entender o perfil
+- Ajudar a pessoa a decidir
+- Conduzir para apresentação/visita e fechamento
 
-  }
-}
+ESTILO (OBRIGATÓRIO):
+- Respostas curtas (máx. 3 a 5 linhas)
+- Tom humano, caloroso, profissional
+- Nada robótico
+- Nada repetitivo
+- NÃO repetir a mesma pergunta duas vezes seguidas
+- Sempre avançar 1 passo por vez
 
-async function askAI(message) {
+TÉCNICAS (SEM citar livros):
+- Interesse genuíno + elogio sutil + escuta
+- Perguntas simples que facilitem resposta
+- Linguagem que cria visão (família, descanso, segurança, investimento)
+- Direção sem pressão (convite, não insistência)
+- Mentalidade de prosperidade e decisão (clareza e confiança)
 
-  try {
+REGRAS DE CONVERSA:
+1) Se a pessoa mandar só “oi/olá/boa tarde”:
+   - Cumprimente
+   - Pergunte UMA coisa simples: “Você quer entender como funciona a fração, valores ou disponibilidade de semanas?”
+2) Se a pessoa disser “quero informações”:
+   - Responda com 3 bullets curtos (o que é, valor, como escolher semanas)
+   - Pergunte: “Você quer usar para lazer (família) ou como investimento?”
+3) Se a pessoa já falou o nome (ex: Calleno):
+   - Use o nome 1 vez e não repita.
+4) Sempre finalize com uma pergunta curta e fácil.
 
-    const response = await axios.post(
-      "https://api.openai.com/v1/chat/completions",
-      {
+DADOS DO PRODUTO (pode usar):
+- Casa Balanço do Mar – multipropriedade em Prado/BA
+- Fração: 2 semanas por ano
+- Valor à vista: R$ 59.890
+- Pagamento à vista pode ter prioridade de escolha de semanas (se aplicável)
+`;
+
+      const payload = {
         model: "gpt-4o-mini",
         temperature: 0.7,
         messages: [
-          {
-            role: "system",
-            content: `
-Você é um concierge consultivo da Casa Balanço do Mar em Prado Bahia.
+          { role: "system", content: systemPrompt.trim() },
+          { role: "user", content: userText },
+        ],
+      };
 
-Seu papel não é apenas responder perguntas.
-Seu papel é conduzir a conversa com inteligência emocional, influência positiva e mentalidade de prosperidade.
-
-Você utiliza naturalmente princípios de:
-
-• Como Fazer Amigos e Influenciar Pessoas
-• Quem Pensa Enriquece
-• Mais Esperto que o Diabo
-• Os Segredos da Mente Milionária
-• O Poder do Subconsciente
-
-Mas nunca cite os livros.
-
-Seu estilo de conversa é:
-
-humano
-calmo
-seguro
-elegante
-curto
-
-Nunca escreva textos longos.
-
-Sempre responda em até 4 linhas.
-
-Sempre termine com uma pergunta que mantenha a conversa viva.
-
-PRINCÍPIOS
-
-CONEXÃO HUMANA
-Use o nome da pessoa quando souber.
-Demonstre interesse genuíno.
-Valorize a opinião da pessoa.
-
-MENTALIDADE DE PROSPERIDADE
-Mostre que experiências e patrimônio caminham juntos.
-
-CLAREZA DE DESEJO
-Ajude a pessoa imaginar descanso, família ou investimento.
-
-DECISÃO
-Sempre conduza para o próximo passo da conversa.
-
-SEM PRESSÃO
-Nunca pareça insistente.
-
-PRODUTO
-
-Casa Balanço do Mar
-Multipropriedade em Prado Bahia.
-
-Valor à vista: 59.890.
-
-Pagamento à vista tem prioridade na escolha das semanas.
-
-OBJETIVO
-
-1 entender o perfil da pessoa
-2 criar conexão
-3 despertar interesse
-4 conduzir para apresentação da casa
-
-Se a pessoa disser apenas "oi":
-
-cumprimente e pergunte algo simples que avance a conversa.
-`
-          },
-          {
-            role: "user",
-            content: message
-          }
-        ]
-      },
-      {
+      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
         headers: {
           Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json"
-        }
-      }
-    )
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-    return response.data.choices[0].message.content
+      const data = await r.json();
 
-  } catch (error) {
+      const msg = data?.choices?.[0]?.message?.content?.trim();
+      if (!msg) return "Perfeito. Me diga só: você busca lazer (família) ou investimento?";
 
-    console.log("erro openai", error.response?.data || error)
+      return msg;
+    } catch (err) {
+      console.log("erro openai", err);
+      return "Tive um ajuste aqui rapidinho. Me diz: você quer saber valores ou como funcionam as semanas?";
+    }
+  };
 
-    return "Desculpe, tive um pequeno problema aqui. Pode repetir sua mensagem?"
-
-  }
-}
-
-export default async function handler(req, res) {
-
+  // 1) Verificação do webhook (GET)
   if (req.method === "GET") {
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
 
-    const mode = req.query["hub.mode"]
-    const token = req.query["hub.verify_token"]
-    const challenge = req.query["hub.challenge"]
-
-    if (mode && token === VERIFY_TOKEN) {
-
-      return res.status(200).send(challenge)
-
+    if (mode === "subscribe" && token === VERIFY_TOKEN) {
+      return res.status(200).send(challenge);
     }
-
-    return res.status(403).send("erro verificação")
-
+    return res.status(403).send("Token inválido");
   }
 
+  // 2) Mensagens (POST)
   if (req.method === "POST") {
-
     try {
+      const body = req.body;
 
-      const body = req.body
+      const message = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+      if (!message) return res.status(200).send("ok");
 
-      const message =
-        body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]
+      const from = message?.from;
+      const text = message?.text?.body?.trim();
 
-      if (!message) {
+      if (!from || !text) return res.status(200).send("ok");
 
-        return res.status(200).send("ok")
+      // Evita responder eco do próprio sistema (se vier)
+      // (WhatsApp Cloud geralmente não manda seu próprio texto, mas fica seguro)
+      if (text.length === 0) return res.status(200).send("ok");
 
-      }
+      const reply = await askAI(text);
+      await sendWhatsAppMessage(from, reply);
 
-      const from = message.from
-
-      const text = message?.text?.body
-
-      if (!text) {
-
-        return res.status(200).send("ok")
-
-      }
-
-      const reply = await askAI(text)
-
-      await sendWhatsAppMessage(from, reply)
-
-      return res.status(200).send("ok")
-
-    } catch (error) {
-
-      console.log("erro webhook", error)
-
-      return res.status(200).send("erro webhook")
-
+      return res.status(200).send("ok");
+    } catch (err) {
+      console.log("erro webhook", err);
+      // responde 200 para o Meta não ficar reenviando infinitamente
+      return res.status(200).send("ok");
     }
   }
 
-  return res.status(405).send("method not allowed")
-
+  return res.status(405).send("Method not allowed");
 }

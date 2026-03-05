@@ -1,83 +1,73 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
 process.env.SUPABASE_URL,
-process.env.SUPABASE_KEY
-);
+process.env.SUPABASE_SERVICE_KEY
+)
 
 export default async function handler(req,res){
 
-try{
-
 const now = new Date()
 
-const {data:leads} = await supabase
-.from("leads")
-.select("*")
+const { data: leads } = await supabase
+.from('leads')
+.select('*')
 
-for(const lead of leads){
+for (const lead of leads){
 
-const last = new Date(lead.last_message)
+const last = new Date(lead.last_interaction)
+const diff = (now - last) / 1000 / 60
 
-const diff = (now-last)/1000/60
-
-if(diff > 5 && !lead.followup1){
-
-await sendMessage(lead.phone,
-"Oi 😊 só passando para saber se conseguiu ver minha última mensagem. Posso te ajudar com algo?"
-)
-
-await supabase
-.from("leads")
-.update({followup1:true})
-.eq("phone",lead.phone)
-
-}
-
-if(diff > 20 && !lead.followup2){
+if(diff > 60 && !lead.followup1_sent){
 
 await sendMessage(lead.phone,
-"Fico à disposição caso queira conhecer a Casa Balanço do Mar ou entender como funciona a multipropriedade."
-)
+"Oi! Só passando para ver se você conseguiu olhar a apresentação da Casa Balanço do Mar 😊")
 
 await supabase
-.from("leads")
-.update({followup2:true})
-.eq("phone",lead.phone)
+.from('leads')
+.update({followup1_sent:true})
+.eq('phone',lead.phone)
+
+}
+
+if(diff > 720 && !lead.followup2_sent){
+
+await sendMessage(lead.phone,
+"Muita gente que fala comigo fica surpresa quando entende que a fração dá direito a duas semanas por ano na casa.")
+
+await supabase
+.from('leads')
+.update({followup2_sent:true})
+.eq('phone',lead.phone)
+
+}
+
+if(diff > 1440 && !lead.followup3_sent){
+
+await sendMessage(lead.phone,
+"Algumas frações estão sendo reservadas essa semana.")
+
+await supabase
+.from('leads')
+.update({followup3_sent:true})
+.eq('phone',lead.phone)
+
+}
+
+if(diff > 4320 && !lead.followup4_sent){
+
+await sendMessage(lead.phone,
+"Vou encerrar seu atendimento por aqui, mas se quiser retomar é só me chamar 😊")
+
+await supabase
+.from('leads')
+.update({followup4_sent:true})
+.eq('phone',lead.phone)
 
 }
 
 }
 
-return res.status(200).send("ok")
-
-}catch(err){
-
-console.log(err)
-
-return res.status(200).send("error")
-
-}
-
-}
-
-async function sendMessage(phone,text){
-
-await fetch(`https://graph.facebook.com/v19.0/${process.env.PHONE_NUMBER_ID}/messages`,{
-
-method:"POST",
-
-headers:{
-Authorization:`Bearer ${process.env.WHATSAPP_TOKEN}`,
-"Content-Type":"application/json"
-},
-
-body:JSON.stringify({
-messaging_product:"whatsapp",
-to:phone,
-text:{body:text}
-})
-
-})
+res.status(200).send("ok")
 
 }

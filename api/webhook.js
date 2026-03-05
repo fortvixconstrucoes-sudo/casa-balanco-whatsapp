@@ -2,7 +2,65 @@ const { getLeadByPhone, upsertLead } = require("./_supabase");
 const { sendWhatsAppText } = require("./_wa");
 const { generateReply, nowISO, clampHistory } = require("./_agent");
 
+const pdf = require("pdf-parse");
+const Tesseract = require("tesseract.js");
+
+// ==================================
+// BAIXAR ARQUIVO DO WHATSAPP
+// ==================================
+
+async function downloadWhatsAppFile(fileId) {
+
+  const meta = await fetch(
+    `https://graph.facebook.com/v19.0/${fileId}`,
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`
+      }
+    }
+  );
+
+  const metaJson = await meta.json();
+
+  const file = await fetch(metaJson.url, {
+    headers: {
+      Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`
+    }
+  });
+
+  const buffer = await file.arrayBuffer();
+
+  return Buffer.from(buffer);
+}
+
+// ==================================
+// LER PDF
+// ==================================
+
+async function readPDF(buffer) {
+
+  const data = await pdf(buffer);
+
+  return data.text;
+}
+
+// ==================================
+// LER IMAGEM (OCR)
+// ==================================
+
+async function readImage(buffer) {
+
+  const result = await Tesseract.recognize(buffer, "por");
+
+  return result.data.text;
+}
+
+// ==================================
+// EXTRAIR MENSAGEM
+// ==================================
+
 function extractIncoming(body) {
+
   const entry = body?.entry?.[0];
   const change = entry?.changes?.[0];
   const value = change?.value;
@@ -11,13 +69,30 @@ function extractIncoming(body) {
   const contact = value?.contacts?.[0];
 
   const from = msg?.from;
+  const type = msg?.type;
   const text = msg?.text?.body;
+
+  const documentId = msg?.document?.id;
+  const imageId = msg?.image?.id;
+
   const profileName = contact?.profile?.name;
 
-  return { from, text, profileName };
+  return {
+    from,
+    type,
+    text,
+    documentId,
+    imageId,
+    profileName
+  };
 }
 
+// ==================================
+// WEBHOOK
+// ==================================
+
 module.exports = async (req, res) => {
+
   try {
 
     // ==================================
@@ -48,9 +123,53 @@ module.exports = async (req, res) => {
     }
 
     const body = req.body || {};
-    const { from, text, profileName } = extractIncoming(body);
 
-    if (!from || !text) {
+    const {
+      from,
+      type,
+      text,
+      documentId,
+      imageId,
+      profileName
+    } = extractIncoming(body);
+
+    if (!from) {
+      return res.status(200).json({ ok: true });
+    }
+
+    let userText = text || "";
+
+    // ==================================
+    // LER DOCUMENTO PDF
+    // ==================================
+
+    if (type === "document" && documentId) {
+
+      const buffer = await downloadWhatsAppFile(documentId);
+
+      const pdfText = await readPDF(buffer);
+
+      userText =
+        "O cliente enviou um documento com os seguintes dados:\n\n" +
+        pdfText;
+    }
+
+    // ==================================
+    // LER IMAGEM (RG / CNH / COMPROVANTE)
+    // ==================================
+
+    if (type === "image" && imageId) {
+
+      const buffer = await downloadWhatsAppFile(imageId);
+
+      const imageText = await readImage(buffer);
+
+      userText =
+        "O cliente enviou uma imagem de documento com os seguintes dados:\n\n" +
+        imageText;
+    }
+
+    if (!userText) {
       return res.status(200).json({ ok: true });
     }
 
@@ -71,7 +190,7 @@ module.exports = async (req, res) => {
       "quero pagar"
     ];
 
-    const textLower = text.toLowerCase();
+    const textLower = userText.toLowerCase();
 
     const isHotLead = hotSignals.some(signal =>
       textLower.includes(signal)
@@ -95,8 +214,6 @@ module.exports = async (req, res) => {
       };
     }
 
-    // Capturar nome do WhatsApp
-
     if (!lead.name && profileName) {
       lead.name = profileName;
     }
@@ -105,10 +222,13 @@ module.exports = async (req, res) => {
     // SALVAR MENSAGEM DO CLIENTE
     // ==================================
 
-    lead.history = clampHistory([
-      ...(lead.history || []),
-      { role: "user", content: text, at: nowISO() }
-    ], 18);
+    lead.history = clampHistory(
+      [
+        ...(lead.history || []),
+        { role: "user", content: userText, at: nowISO() }
+      ],
+      18
+    );
 
     lead.last_message = nowISO();
 
@@ -120,17 +240,20 @@ module.exports = async (req, res) => {
 
     const reply = await generateReply({
       lead,
-      userText: text
+      userText
     });
 
     // ==================================
     // SALVAR RESPOSTA
     // ==================================
 
-    lead.history = clampHistory([
-      ...(lead.history || []),
-      { role: "assistant", content: reply, at: nowISO() }
-    ], 18);
+    lead.history = clampHistory(
+      [
+        ...(lead.history || []),
+        { role: "assistant", content: reply, at: nowISO() }
+      ],
+      18
+    );
 
     lead.last_message = nowISO();
 
@@ -155,7 +278,7 @@ Cliente: ${lead.name || "não informado"}
 Telefone: ${from}
 
 Mensagem:
-"${text}"
+"${userText}"
 
 Entre em contato agora para fechar.
 `;

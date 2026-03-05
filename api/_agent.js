@@ -6,6 +6,52 @@ function normalizeText(s) {
   return (s || "").trim().toLowerCase();
 }
 
+function detectPurchaseIntent(text){
+const t = normalizeText(text)
+const triggers = [
+"quero comprar",
+"quero fechar",
+"quero reservar",
+"quero pagar",
+"quero contrato",
+"quero garantir",
+"como faço para pagar",
+"como faço para comprar",
+"posso comprar",
+"quero essa fração",
+"quero fechar negócio"
+]
+return triggers.some(k => t.includes(k))
+
+}
+
+async function alertOwner(lead,text){
+const ownerPhone = process.env.OWNER_PHONE
+const msg =
+`🔥 LEAD QUENTE
+
+Cliente: ${lead.name || "Sem nome"}
+Telefone: ${lead.phone}
+
+Mensagem:
+${text}
+`
+  
+await fetch(process.env.WHATSAPP_URL,{
+method:"POST",
+headers:{
+"Content-Type":"application/json",
+Authorization:`Bearer ${process.env.WHATSAPP_TOKEN}`
+},
+body:JSON.stringify({
+to:ownerPhone,
+type:"text",
+text:{body:msg}
+})
+})
+
+}
+
 function isGreeting(txt) {
   const t = normalizeText(txt);
   return ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite"].includes(t);
@@ -867,6 +913,12 @@ function quickSmartReply({ lead, userText }) {
 }
 
 async function generateReply({ lead, userText }) {
+  // DETECTA LEAD QUENTE
+if(detectPurchaseIntent(userText)){
+
+alertOwner(lead,userText).catch(()=>{})
+
+}
   const system = buildSystemPrompt();
 
   // 1) resposta rápida (evita “robô” e evita repetição)

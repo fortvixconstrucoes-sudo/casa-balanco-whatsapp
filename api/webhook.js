@@ -21,7 +21,10 @@ function extractIncoming(body) {
 
 module.exports = async (req, res) => {
   try {
-    // 1) Verificação do webhook (GET)
+
+    // ============================================
+    // VERIFICAÇÃO DO WEBHOOK
+    // ============================================
     if (req.method === "GET") {
       const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
       const mode = req.query["hub.mode"];
@@ -31,21 +34,49 @@ module.exports = async (req, res) => {
       if (mode === "subscribe" && token === verifyToken) {
         return res.status(200).send(challenge);
       }
+
       return res.status(403).send("Forbidden");
     }
 
-    // 2) Receber mensagem (POST)
+    // ============================================
+    // RECEBER MENSAGEM
+    // ============================================
     if (req.method !== "POST") return res.status(405).json({ ok: false });
 
     const body = req.body || {};
     const { from, text, profileName } = extractIncoming(body);
 
     if (!from || !text) {
-      // WhatsApp manda eventos que não são mensagem
       return res.status(200).json({ ok: true, ignored: true });
     }
 
-    // 3) Carrega lead + cria se não existir
+    // ============================================
+    // DETECÇÃO DE LEAD QUENTE
+    // ============================================
+    const hotSignals = [
+      "quero comprar",
+      "quero fechar",
+      "quero reservar",
+      "como pagar",
+      "quero contrato",
+      "falar com humano",
+      "falar com atendente",
+      "ligação",
+      "agendar",
+      "quero pagar",
+      "posso pagar",
+      "como faço para pagar"
+    ];
+
+    const textLower = text.toLowerCase();
+
+    const isHotLead = hotSignals.some(signal =>
+      textLower.includes(signal)
+    );
+
+    // ============================================
+    // CARREGA LEAD
+    // ============================================
     let lead = (await getLeadByPhone(from)) || {
       phone: from,
       name: null,
@@ -56,12 +87,14 @@ module.exports = async (req, res) => {
       followup2: false
     };
 
-    // 4) Se não tem nome ainda, tenta aproveitar o profileName do WhatsApp (bom!)
+    // Aproveita nome do perfil WhatsApp
     if (!lead.name && profileName && profileName.length <= 40) {
       lead.name = profileName;
     }
 
-    // 5) Atualiza histórico com a mensagem do usuário
+    // ============================================
+    // SALVA MENSAGEM DO USUÁRIO
+    // ============================================
     lead.history = clampHistory([
       ...(Array.isArray(lead.history) ? lead.history : []),
       { role: "user", content: text, at: nowISO() }
@@ -70,10 +103,17 @@ module.exports = async (req, res) => {
     lead.last_message = nowISO();
     lead = await upsertLead(lead);
 
-    // 6) Gera resposta
-    const reply = await generateReply({ lead, userText: text });
+    // ============================================
+    // GERAR RESPOSTA DA IA
+    // ============================================
+    const reply = await generateReply({
+      lead,
+      userText: text
+    });
 
-    // 7) Salva resposta no histórico + envia
+    // ============================================
+    // SALVAR RESPOSTA
+    // ============================================
     lead.history = clampHistory([
       ...(Array.isArray(lead.history) ? lead.history : []),
       { role: "assistant", content: reply, at: nowISO() }
@@ -82,11 +122,41 @@ module.exports = async (req, res) => {
     lead.last_message = nowISO();
     await upsertLead(lead);
 
+    // ============================================
+    // ENVIAR RESPOSTA PARA CLIENTE
+    // ============================================
     await sendWhatsAppText(from, reply);
 
+    // ============================================
+    // ALERTA PARA CALLENO SE LEAD QUENTE
+    // ============================================
+    if (isHotLead) {
+
+      const alertMessage = `
+🚨 LEAD QUENTE
+
+Cliente: ${lead.name || "não informado"}
+Telefone: ${from}
+
+Mensagem:
+"${text}"
+
+Entrar em contato agora para dar atenção especial.
+`;
+
+      await sendWhatsAppText("5527998331176", alertMessage);
+    }
+
     return res.status(200).json({ ok: true });
+
   } catch (err) {
+
     console.error("WEBHOOK ERROR:", err?.message || err);
-    return res.status(200).json({ ok: false, error: String(err?.message || err) });
+
+    return res.status(200).json({
+      ok: false,
+      error: String(err?.message || err)
+    });
+
   }
 };

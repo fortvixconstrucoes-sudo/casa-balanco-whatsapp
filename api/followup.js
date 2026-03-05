@@ -5,35 +5,46 @@ process.env.SUPABASE_URL,
 process.env.SUPABASE_SERVICE_KEY
 )
 
+async function sendMessage(phone, text){
+
+await fetch(process.env.WHATSAPP_URL,{
+method:"POST",
+headers:{
+"Content-Type":"application/json",
+Authorization:`Bearer ${process.env.WHATSAPP_TOKEN}`
+},
+body:JSON.stringify({
+to:phone,
+type:"text",
+text:{body:text}
+})
+})
+
+}
+
 export default async function handler(req,res){
 
 try{
 
 const now = new Date()
 
-const { data: leads, error } = await supabase
+const { data: leads } = await supabase
 .from('leads')
 .select('*')
 
-if(error){
-console.log("Erro Supabase:", error)
-return res.status(500).send("db error")
-}
-
-for (const lead of leads){
+for(const lead of leads){
 
 if(!lead.phone) continue
 
 const last = new Date(lead.last_interaction)
 const diff = (now - last) / 1000 / 60
 
+let msg = null
+
 // FOLLOWUP 1 — 1h
 if(diff > 60 && !lead.followup1_sent){
 
-await sendMessage(
-lead.phone,
-"Oi! Só passando para ver se você conseguiu olhar a apresentação da Casa Balanço do Mar 😊"
-)
+msg = "Oi! Só passando para ver se você conseguiu olhar a apresentação da Casa Balanço do Mar 😊"
 
 await supabase
 .from('leads')
@@ -43,12 +54,9 @@ await supabase
 }
 
 // FOLLOWUP 2 — 12h
-if(diff > 720 && !lead.followup2_sent){
+else if(diff > 720 && !lead.followup2_sent){
 
-await sendMessage(
-lead.phone,
-"Uma coisa que muitas pessoas acham interessante é que cada fração garante duas semanas por ano na casa em Prado."
-)
+msg = "Uma coisa que muita gente acha interessante é que cada fração garante duas semanas por ano na casa em Prado."
 
 await supabase
 .from('leads')
@@ -58,12 +66,9 @@ await supabase
 }
 
 // FOLLOWUP 3 — 24h
-if(diff > 1440 && !lead.followup3_sent){
+else if(diff > 1440 && !lead.followup3_sent){
 
-await sendMessage(
-lead.phone,
-"Algumas frações estão sendo reservadas essa semana. Se quiser posso te mostrar quais ainda estão disponíveis."
-)
+msg = "Algumas frações estão sendo reservadas essa semana. Se quiser posso te mostrar quais ainda estão disponíveis."
 
 await supabase
 .from('leads')
@@ -73,17 +78,32 @@ await supabase
 }
 
 // FOLLOWUP 4 — 72h
-if(diff > 4320 && !lead.followup4_sent){
+else if(diff > 4320 && !lead.followup4_sent){
 
-await sendMessage(
-lead.phone,
-"Vou encerrar seu atendimento por aqui para não te incomodar. Mas se quiser retomar é só me chamar 😊"
-)
+msg = "Se quiser posso te mostrar também como funciona para garantir uma fração."
 
 await supabase
 .from('leads')
 .update({followup4_sent:true})
 .eq('phone',lead.phone)
+
+}
+
+// FOLLOWUP 5 — 5 dias
+else if(diff > 7200 && !lead.followup5_sent){
+
+msg = "Vou encerrar seu atendimento para não te incomodar. Mas se quiser retomar é só me chamar 😊"
+
+await supabase
+.from('leads')
+.update({followup5_sent:true})
+.eq('phone',lead.phone)
+
+}
+
+if(msg){
+
+await sendMessage(lead.phone,msg)
 
 }
 
@@ -93,14 +113,10 @@ return res.status(200).send("ok")
 
 }catch(err){
 
-console.log("Erro followup:",err)
+console.log(err)
+
 return res.status(500).send("error")
 
 }
-
-}
-}
-
-res.status(200).send("ok")
 
 }

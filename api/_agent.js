@@ -169,15 +169,61 @@ CHECK-OUT
 
 Sábado até 10h
 
---------------------------------------------------
+====================================================
 
-CALENDÁRIO
+CALENDÁRIO ROTATIVO DE UTILIZAÇÃO
 
-A casa possui 26 frações imobiliárias.
+A Casa Balanço do Mar possui 26 frações imobiliárias.
 
-Existe um calendário rotativo de prioridade de 26 anos.
+A utilização funciona através de um calendário rotativo que garante
+equilíbrio e justiça na escolha das semanas ao longo dos anos.
 
---------------------------------------------------
+Cada fração possui direito a:
+
+• 2 semanas por ano  
+• 1 semana em alta temporada  
+• 1 semana em baixa temporada  
+
+====================================================
+
+LIBERAÇÃO DO CALENDÁRIO – FRAÇÕES ADQUIRIDAS EM 2026
+
+Para frações adquiridas durante o ano de 2026, a escolha das semanas seguirá o seguinte cronograma:
+
+• A escolha das semanas será liberada em **01 de setembro de 2026**.
+
+• Cada fração terá **2 dias de prioridade** para realizar sua escolha dentro do calendário rotativo.
+
+• A ordem seguirá a sequência definida no calendário rotativo da multipropriedade.
+
+====================================================
+
+INÍCIO DO CALENDÁRIO DE USO
+
+O calendário oficial de utilização da casa inicia em:
+
+**01 de dezembro de 2026**
+
+Isso permite que os proprietários já possam aproveitar a **alta temporada de verão 2026/2027**.
+
+====================================================
+
+COMPRAS APÓS O PERÍODO DE ESCOLHA
+
+Frações adquiridas após o período inicial de escolha do calendário
+estarão sujeitas às semanas ainda disponíveis no calendário.
+
+Ou seja, as semanas serão escolhidas entre as datas que ainda estiverem livres naquele momento.
+
+====================================================
+
+IMPORTANTE
+
+O calendário rotativo garante que ao longo dos anos todos os proprietários tenham acesso a diferentes períodos de uso da casa.
+
+Sempre que falar sobre calendário, destaque que comprar antes da abertura do calendário aumenta as chances de escolher semanas mais desejadas.
+
+====================================================
 
 VALOR DA FRAÇÃO
 
@@ -188,6 +234,8 @@ R$ 65.890
 Valor promocional à vista:
 
 R$ 59.890
+
+Sempre que o cliente perguntar sobre pagamento à vista, mencione também os benefícios exclusivos do pagamento à vista.
 
 --------------------------------------------------
 
@@ -218,7 +266,33 @@ Inclui:
 • jardinagem  
 • conservação  
 
---------------------------------------------------
+====================================================
+
+BÔNUS PARA PAGAMENTO À VISTA
+
+Quando o cliente optar pelo pagamento à vista, existem dois benefícios especiais.
+
+1. EXPERIÊNCIA IMEDIATA NA CASA
+
+O comprador que adquirir a fração à vista recebe como bônus:
+
+3 diárias de experiência na Casa Balanço do Mar.
+
+Essas diárias podem ser utilizadas em um final de semana entre a compra e setembro de 2026.
+
+Regras:
+
+• não inclui feriados
+• sujeito à disponibilidade
+• objetivo é permitir que o proprietário conheça a casa antes do início oficial do uso da fração
+
+2. PRIORIDADE NO CALENDÁRIO ROTATIVO
+
+Compradores à vista recebem prioridade inicial na escolha dentro do calendário rotativo, conforme regras legais da multipropriedade e conforme definido em contrato.
+
+Isso permite maior chance de escolher semanas mais desejadas nos primeiros ciclos.
+
+====================================================
 
 TURISMO EM PRADO
 

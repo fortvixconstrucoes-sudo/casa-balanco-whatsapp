@@ -8,6 +8,7 @@ function normalizeText(s) {
 
 function detectPurchaseIntent(text){
 const t = normalizeText(text)
+
 const triggers = [
 "quero comprar",
 "quero fechar",
@@ -19,10 +20,14 @@ const triggers = [
 "como faço para comprar",
 "posso comprar",
 "quero essa fração",
-"quero fechar negócio"
+"quero fechar negócio",
+"a vista",
+"à vista",
+"parcelado",
+"vamos fechar"
 ]
-return triggers.some(k => t.includes(k))
 
+return triggers.some(k => t.includes(k))
 }
 
 async function alertOwner(lead,text){
@@ -183,6 +188,19 @@ Evite apenas explicar sem conduzir a conversa.
 Sempre que possível faça uma pergunta que leve ao próximo passo.
 
 --------------------------------------------------
+MODO CONVERSA NATURAL
+
+Se o cliente fizer comentários fora do assunto principal, responda de forma breve e retome a conversa sobre a Casa Balanço do Mar.
+
+Nunca encerre a conversa com frases como:
+
+• "fico à disposição"
+• "se precisar"
+• "qualquer dúvida"
+
+Sempre direcione a conversa para o próximo passo da venda.
+
+------------------------------------------
 
 PRIMEIRA INTERAÇÃO
 
@@ -497,9 +515,23 @@ Nunca invente:
 • restaurantes
 • passeios
 
-Se o cliente perguntar algo fora da lista, responda:
+Se o cliente falar algo fora do tema da Casa Balanço do Mar (exemplo: viagens, comentários pessoais ou assuntos aleatórios):
 
-"Posso confirmar essa informação e te indicar os melhores lugares da região."
+• responda de forma natural e educada
+• reconheça o comentário do cliente
+• conduza novamente a conversa para o projeto
+
+Exemplo:
+
+"Que viagem incrível! 😊
+
+Falando em viagens, muita gente que compra a fração usa justamente para garantir férias todos os anos em Prado.
+
+Você pensa mais em usar a casa com a família ou também como investimento?"
+
+Nunca responda apenas:
+
+"Posso confirmar essa informação."
 
 --------------------------------------------------
 
@@ -865,7 +897,7 @@ async function callOpenAI({ system, messages }) {
   // Chat Completions simples por compatibilidade
   const payload = {
     model,
-    temperature: 0.6,
+    temperature: 0.4,
     messages: [
       { role: "system", content: system },
       ...messages
@@ -892,24 +924,45 @@ async function callOpenAI({ system, messages }) {
 }
 
 function quickSmartReply({ lead, userText }) {
-  const t = normalizeText(userText);
 
-  // Captura nome quando a pessoa manda só o nome (ex: "Calleno")
-  if (!lead.name && userText && userText.length <= 20 && !isGreeting(userText)) {
-    return `Prazer, ${userText}! 😊 Me diz rapidinho: você está buscando **férias** (usar a casa) ou quer entender a **multipropriedade/investimento**?`;
-  }
+const t = normalizeText(userText)
 
-  // Se for só "oi" e já temos nome: não repetir olá, já puxar assunto
-  if (isGreeting(userText) && lead.name) {
-   return `${lead.name}, você quer conhecer primeiro a casa ou entender como funciona a multipropriedade?`;
-  }
+// captura nome
+if (!lead.name && userText && userText.length <= 20 && !isGreeting(userText)) {
+return `Prazer, ${userText}! 😊
 
-  // Se for só "oi" e não tem nome: pedir nome de forma natural
-  if (isGreeting(userText) && !lead.name) {
-    return `Oi! 😊 Que bom ter você por aqui. Como posso te chamar?`;
-  }
+Me conta uma coisa: você chegou até a Casa Balanço do Mar pensando mais em férias ou em investimento?`
+}
 
-  return null;
+// saudação com nome
+if (isGreeting(userText) && lead.name) {
+return `Que bom falar com você, ${lead.name}! 😊
+
+Você quer conhecer primeiro a casa ou entender como funciona a multipropriedade?`
+}
+
+// saudação sem nome
+if (isGreeting(userText) && !lead.name) {
+return `Oi! 😊 Que bom ter você por aqui.
+
+Como posso te chamar?`
+}
+
+// conversa fora do tema
+if(
+t.includes("paris") ||
+t.includes("madri") ||
+t.includes("espanha") ||
+t.includes("viajar")
+){
+return `Viagem boa demais! 😊
+
+Aliás, muita gente que compra a fração faz isso justamente para ter férias garantidas todos os anos em Prado.
+
+Você pensa mais em usar a casa com a família ou também como investimento?`
+}
+
+return null
 }
 
 async function generateReply({ lead, userText }) {

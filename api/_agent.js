@@ -7,9 +7,11 @@ function normalizeText(s) {
 }
 
 function detectPurchaseIntent(text){
+
 const t = normalizeText(text)
 
 const triggers = [
+
 "quero comprar",
 "quero fechar",
 "quero reservar",
@@ -24,7 +26,12 @@ const triggers = [
 "a vista",
 "à vista",
 "parcelado",
-"vamos fechar"
+"vamos fechar",
+"manda contrato",
+"tenho interesse",
+"quero essa",
+"quero participar"
+
 ]
 
 return triggers.some(k => t.includes(k))
@@ -909,6 +916,32 @@ Se o cliente demonstrar insegurança, ofereça visita.
 
 ====================================================
 
+DOCUMENTOS ENVIADOS PELO CLIENTE
+
+Se o cliente enviar um documento como:
+
+• comprovante de residência
+• RG
+• CPF
+• conta de energia
+• conta de água
+
+Nunca diga que não entende o documento.
+
+Responda de forma natural.
+
+Exemplo:
+
+"Perfeito, recebi seu comprovante de residência.
+
+Agora já temos praticamente tudo para iniciar a reserva da sua fração.
+
+Vou organizar as informações para preparar o contrato."
+
+Depois conduza para o próximo passo da compra.
+
+====================================================
+
 RESPOSTAS PARA OBJEÇÕES E DÚVIDAS SOBRE MULTIPROPRIEDADE
 
 Quando o cliente demonstrar receio ou fizer perguntas críticas, responda de forma clara, profissional e tranquila.
@@ -1151,7 +1184,7 @@ Nunca pareça um robô.
 
 async function callOpenAI({ system, messages }) {
   const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
   if (!apiKey) throw new Error("Missing env OPENAI_API_KEY");
 
   // Chat Completions simples por compatibilidade
@@ -1221,7 +1254,22 @@ Aliás, muita gente que compra a fração faz isso justamente para ter férias g
 
 Você pensa mais em usar a casa com a família ou também como investimento?`
 }
+  
+// cliente pediu fotos
+if(
+t.includes("foto") ||
+t.includes("fotos") ||
+t.includes("imagem") ||
+t.includes("imagens")
+){
+return `Claro! 😊
 
+Vou te mostrar algumas fotos da Casa Balanço do Mar.
+
+Ela foi pensada para oferecer uma experiência completa de praia com conforto e privacidade.
+
+Você imagina usar mais com a família ou também como investimento?`
+}
 return null
 }
 

@@ -74,17 +74,19 @@ function extractIncoming(body) {
 
   const documentId = msg?.document?.id;
   const imageId = msg?.image?.id;
+  const audioId = msg?.audio?.id;
 
   const profileName = contact?.profile?.name;
 
-  return {
-    from,
-    type,
-    text,
-    documentId,
-    imageId,
-    profileName
-  };
+ return {
+  from,
+  type,
+  text,
+  documentId,
+  imageId,
+  audioId,
+  profileName
+};
 }
 
 // ==================================
@@ -124,14 +126,15 @@ module.exports = async (req, res) => {
 
     const body = req.body || {};
 
-    const {
-      from,
-      type,
-      text,
-      documentId,
-      imageId,
-      profileName
-    } = extractIncoming(body);
+   const {
+  from,
+  type,
+  text,
+  documentId,
+  imageId,
+  audioId,
+  profileName
+} = extractIncoming(body);
 
     if (!from) {
       return res.status(200).json({ ok: true });
@@ -172,23 +175,66 @@ module.exports = async (req, res) => {
     if (!userText) {
       return res.status(200).json({ ok: true });
     }
+    
+// ==================================
+// LER AUDIO (WHISPER)
+// ==================================
 
+if (type === "audio" && audioId) {
+
+  const buffer = await downloadWhatsAppFile(audioId);
+
+  const formData = new FormData();
+
+  formData.append(
+    "file",
+    new Blob([buffer]),
+    "audio.ogg"
+  );
+
+  formData.append(
+    "model",
+    "whisper-1"
+  );
+
+  const transcription = await fetch(
+    "https://api.openai.com/v1/audio/transcriptions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      body: formData
+    }
+  );
+
+  const tr = await transcription.json();
+
+  userText = tr.text || "";
+}
+    
     // ==================================
     // DETECTAR LEAD QUENTE
     // ==================================
 
-    const hotSignals = [
-      "quero comprar",
-      "quero fechar",
-      "quero reservar",
-      "como pagar",
-      "quero contrato",
-      "falar com humano",
-      "falar com atendente",
-      "ligação",
-      "agendar",
-      "quero pagar"
-    ];
+   const hotSignals = [
+     "vou querer",
+     "vou fechar",
+      "quero",
+     "quero sim",
+  "quero comprar",
+  "quero fechar",
+  "quero reservar",
+  "quero pagar",
+  "quero contrato",
+  "à vista",
+  "a vista",
+  "parcelado",
+  "manda contrato",
+  "tenho interesse",
+  "vamos fechar",
+  "quero garantir"
+];
 
     const textLower = userText.toLowerCase();
 
@@ -263,8 +309,13 @@ module.exports = async (req, res) => {
     // ENVIAR RESPOSTA
     // ==================================
 
-    await sendWhatsAppText(from, reply);
+const parts = reply.split("\n\n");
 
+for (const part of parts) {
+  if (part.trim()) {
+    await sendWhatsAppText(from, part.trim());
+  }
+}
     // ==================================
     // ALERTA DE LEAD QUENTE
     // ==================================

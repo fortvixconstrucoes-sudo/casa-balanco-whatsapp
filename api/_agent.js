@@ -1,5 +1,9 @@
 const { sendWhatsAppImage, sendWhatsAppText, sendWhatsAppVideo } = require("./_wa");
 
+// =============================
+// ESTÁGIOS DO FUNIL
+// =============================
+
 const stages = {
   novo: 0,
   curioso: 1,
@@ -22,10 +26,19 @@ function normalizeText(s) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+function clampHistory(history, max = 20) {
+  const h = Array.isArray(history) ? history : [];
+  return h.slice(-max);
+}
+
+// =============================
+// DETECÇÕES
+// =============================
+
 function detectStage(text, lead) {
   const t = normalizeText(text);
 
-  if (/comprar|fechar|reservar|pagar|contrato|assin[ae]r|comprovante/.test(t)) {
+  if (/comprar|fechar|reservar|pagar|contrato|assin|comprovante/.test(t)) {
     return "fechamento";
   }
 
@@ -33,11 +46,11 @@ function detectStage(text, lead) {
     return "negociando";
   }
 
-  if (/como funciona|multipropriedade|fracao|fração|endereco|endereço|localizacao|localização|mapa/.test(t)) {
+  if (/como funciona|multipropriedade|fracao|fração/.test(t)) {
     return "avaliando";
   }
 
-  if (/foto|video|vídeo|mostrar|ver|tour/.test(t)) {
+  if (/foto|fotos|imagem|imagens|video|vídeo|tour|mostrar|ver/.test(t)) {
     return "interessado";
   }
 
@@ -68,13 +81,8 @@ function isGreeting(txt) {
   return ["oi", "ola", "bom dia", "boa tarde", "boa noite"].includes(t);
 }
 
-function clampHistory(history, max = 24) {
-  const h = Array.isArray(history) ? history : [];
-  return h.slice(-max);
-}
-
 // =============================
-// MÍDIA DA CASA BALANÇO DO MAR
+// MÍDIA
 // =============================
 
 const casaMedia = {
@@ -90,22 +98,241 @@ const casaMedia = {
 };
 
 async function sendCasaMedia(phone) {
-  await sendWhatsAppText(
-    phone,
-    "Vou te mostrar algumas imagens da Casa Balanço do Mar 😊"
-  );
+  await sendWhatsAppText(phone, "Vou te mostrar algumas imagens da Casa Balanço do Mar 😊");
 
   for (const banner of casaMedia.banners) {
     await sendWhatsAppImage(phone, banner);
   }
 
-  await sendWhatsAppText(
-    phone,
-    "E aqui um vídeo da casa para você sentir melhor a experiência:"
-  );
-
+  await sendWhatsAppText(phone, "E aqui um vídeo rápido da casa 👇");
   await sendWhatsAppVideo(phone, casaMedia.video);
 }
+
+// =============================
+// ALERTA LEAD QUENTE
+// =============================
+
+async function alertOwner(lead, text) {
+  try {
+    const ownerPhone = process.env.OWNER_PHONE;
+    if (!ownerPhone) return;
+
+    const msg = `🔥 LEAD QUENTE
+
+Cliente: ${lead?.buyer?.full_name || lead.name || "Sem nome"}
+Telefone: ${lead.phone}
+
+Mensagem:
+${text}`;
+
+    await fetch(process.env.WHATSAPP_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`
+      },
+      body: JSON.stringify({
+        to: ownerPhone,
+        type: "text",
+        text: { body: msg }
+      })
+    });
+  } catch (err) {
+    console.error("alertOwner error:", err?.message || err);
+  }
+}
+
+// =============================
+// ESTRUTURA DO LEAD
+// =============================
+
+function ensureLeadStructures(lead) {
+  lead.buyer = lead.buyer || {};
+  lead.spouse = lead.spouse || {};
+  lead.purchase = lead.purchase || {};
+  lead.product = lead.product || {};
+
+  lead.product.name = lead.product.name || "Casa Balanço do Mar";
+  lead.product.fraction_value = lead.product.fraction_value || 59890;
+  lead.product.maintenance_fee = lead.product.maintenance_fee || 250;
+  lead.product.address =
+    lead.product.address ||
+    "Rua T17, Quadra 26, Lote 02B, Bairro Basevi, Prado – Bahia, CEP 45980-000";
+  lead.product.map_link =
+    lead.product.map_link ||
+    "https://www.google.com/maps?q=-17.324118246682865,-39.22221224575318";
+  lead.product.max_guests = lead.product.max_guests || 6;
+
+  return lead;
+}
+
+// =============================
+// CAMPOS FALTANTES
+// =============================
+
+function spouseIsRequired(lead) {
+  const marital = normalizeText(lead?.buyer?.marital_status || "");
+  return /casado|casada|uniao estavel|união estável|companheiro|companheira/.test(marital);
+}
+
+function getMissingBuyerFields(lead) {
+  const b = lead.buyer || {};
+  const missing = [];
+
+  if (!b.full_name) missing.push("nome completo");
+  if (!b.cpf) missing.push("CPF");
+  if (!b.rg) missing.push("RG");
+  if (!b.birth_date) missing.push("data de nascimento");
+  if (!b.marital_status) missing.push("estado civil");
+  if (!b.profession) missing.push("profissão");
+  if (!b.street) missing.push("endereço completo");
+  if (!b.city) missing.push("cidade");
+  if (!b.state) missing.push("estado");
+  if (!b.cep) missing.push("CEP");
+  if (!b.phone) missing.push("telefone");
+  if (!b.email) missing.push("e-mail");
+
+  return missing;
+}
+
+function getMissingSpouseFields(lead) {
+  if (!spouseIsRequired(lead)) return [];
+
+  const s = lead.spouse || {};
+  const missing = [];
+
+  if (!s.full_name) missing.push("nome completo do cônjuge");
+  if (!s.cpf) missing.push("CPF do cônjuge");
+  if (!s.rg) missing.push("RG do cônjuge");
+  if (!s.marital_status) missing.push("estado civil do cônjuge");
+  if (!s.property_regime) missing.push("regime de bens");
+
+  return missing;
+}
+
+// =============================
+// UTILIDADES
+// =============================
+
+function formatMoney(value) {
+  const num = Number(value || 0);
+  return num.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+function buildPaymentDataMessage() {
+  return `💳 DADOS PARA PAGAMENTO
+
+Banco: 336 - Banco C6 S.A.
+Agência: 0001
+Conta corrente: 25014352-6
+CNPJ: 48.180.148/0001-81
+Nome: NAURU BEACH RESIDENCE & HOTEL
+Chave Pix: 48.180.148/0001-81`;
+}
+
+function buildMissingDataMessage(lead) {
+  const missing = [...getMissingBuyerFields(lead), ...getMissingSpouseFields(lead)];
+
+  if (!missing.length) return null;
+
+  return `Perfeito! Para eu preencher sua ficha completa sem erro, preciso só destes dados:
+
+• ${missing.join("\n• ")}
+
+Pode me enviar por aqui mesmo.`;
+}
+
+function buildContractFormText(lead) {
+  ensureLeadStructures(lead);
+
+  const buyer = lead.buyer || {};
+  const spouse = lead.spouse || {};
+  const purchase = lead.purchase || {};
+  const product = lead.product || {};
+
+  let paymentText = "A definir";
+
+  if (purchase.payment_mode === "avista") {
+    paymentText = "À vista";
+  }
+
+  if (purchase.payment_mode === "parcelado") {
+    paymentText = `Parcelado | Entrada: R$ ${formatMoney(purchase.entry_value || 7290)} | ${purchase.installments || "-"}x de R$ ${formatMoney(purchase.installment_value || 0)}`;
+  }
+
+  return `📄 FICHA DE RESERVA – CASA BALANÇO DO MAR
+
+I – DADOS DO COMPRADOR
+Nome completo: ${buyer.full_name || "-"}
+CPF: ${buyer.cpf || "-"}
+RG: ${buyer.rg || "-"}
+Data de nascimento: ${buyer.birth_date || "-"}
+Estado civil: ${buyer.marital_status || "-"}
+Profissão: ${buyer.profession || "-"}
+Endereço: ${buyer.street || "-"}
+Cidade: ${buyer.city || "-"}
+Estado: ${buyer.state || "-"}
+CEP: ${buyer.cep || "-"}
+Telefone: ${buyer.phone || lead.phone || "-"}
+E-mail: ${buyer.email || "-"}
+
+II – DADOS DO CÔNJUGE
+Nome completo: ${spouse.full_name || "-"}
+CPF: ${spouse.cpf || "-"}
+RG: ${spouse.rg || "-"}
+Estado civil: ${spouse.marital_status || "-"}
+Regime de bens: ${spouse.property_regime || "-"}
+
+III – EMPREENDIMENTO
+${product.name}
+
+IV – IMÓVEL
+${product.address}
+
+V – DIREITO DE USO
+• 1 semana alta temporada
+• 1 semana baixa temporada
+• Capacidade máxima: até ${product.max_guests} hóspedes
+
+VI – VALORES
+Valor promocional à vista: R$ ${formatMoney(product.fraction_value)}
+Taxa de manutenção: R$ ${formatMoney(product.maintenance_fee)}/mês
+Forma de pagamento: ${paymentText}
+
+VII – ORIENTAÇÃO FINAL
+Confira os dados, assine e me devolva esta ficha junto com o comprovante de pagamento para confirmarmos sua fração.`;
+}
+
+// =============================
+// EXTRAÇÃO DE DADOS
+// =============================
+
+function mergeBuyerDataFromText(lead, text = "") {
+  ensureLeadStructures(lead);
+
+  const src = text || "";
+
+  const cpf = src.match(/\b\d{3}\.?\d{3}\.?\d{3}\-?\d{2}\b/);
+  if (cpf && !lead.buyer.cpf) lead.buyer.cpf = cpf[0];
+
+  const email = src.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  if (email && !lead.buyer.email) lead.buyer.email = email[0];
+
+  const cep = src.match(/\b\d{5}\-?\d{3}\b/);
+  if (cep && !lead.buyer.cep) lead.buyer.cep = cep[0];
+
+  const birth = src.match(/\b\d{2}\/\d{2}\/\d{4}\b/);
+  if (birth && !lead.buyer.birth_date) lead.buyer.birth_date = birth[0];
+
+  return lead;
+}
+
+// =============================
+// FOLLOWUP / RECOVERY
+// =============================
 
 function buildFollowUp(lead) {
   const stage = lead.stage;
@@ -148,217 +375,6 @@ function buildRecoveryMessage() {
   return msgs[Math.floor(Math.random() * msgs.length)];
 }
 
-async function alertOwner(lead, text) {
-  try {
-    const ownerPhone = process.env.OWNER_PHONE;
-    if (!ownerPhone) return;
-
-    const msg = `🔥 LEAD QUENTE
-
-Cliente: ${lead?.buyer?.full_name || lead.name || "Sem nome"}
-Telefone: ${lead.phone}
-
-Mensagem:
-${text}
-`;
-
-    await fetch(process.env.WHATSAPP_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`
-      },
-      body: JSON.stringify({
-        to: ownerPhone,
-        type: "text",
-        text: { body: msg }
-      })
-    });
-  } catch (err) {
-    console.error("alertOwner error:", err?.message || err);
-  }
-}
-
-// =============================
-// MEMÓRIA E ESTRUTURAS
-// =============================
-
-function ensureLeadStructures(lead) {
-  lead.buyer = lead.buyer || {};
-  lead.spouse = lead.spouse || {};
-  lead.purchase = lead.purchase || {};
-  lead.product = lead.product || {};
-
-  lead.product.name = lead.product.name || "Casa Balanço do Mar";
-  lead.product.fraction_value = lead.product.fraction_value || 59890;
-  lead.product.maintenance_fee = lead.product.maintenance_fee || 250;
-  lead.product.address =
-    lead.product.address ||
-    "Rua T17, Quadra 26, Lote 02B, Bairro Basevi, Prado – Bahia, CEP 45980-000";
-  lead.product.map_link =
-    lead.product.map_link ||
-    "https://www.google.com/maps?q=-17.324118246682865,-39.22221224575318";
-  lead.product.max_guests = lead.product.max_guests || 6;
-
-  return lead;
-}
-
-function spouseIsRequired(lead) {
-  const marital = normalizeText(lead?.buyer?.marital_status || "");
-  return /casado|casada|uniao estavel|união estavel|união estável|companheiro|companheira/.test(marital);
-}
-
-function getMissingBuyerFields(lead) {
-  const b = lead.buyer || {};
-  const missing = [];
-
-  if (!b.full_name) missing.push("nome completo");
-  if (!b.cpf) missing.push("CPF");
-  if (!b.rg) missing.push("RG");
-  if (!b.birth_date) missing.push("data de nascimento");
-  if (!b.marital_status) missing.push("estado civil");
-  if (!b.profession) missing.push("profissão");
-  if (!b.street) missing.push("endereço completo");
-  if (!b.city) missing.push("cidade");
-  if (!b.state) missing.push("estado");
-  if (!b.cep) missing.push("CEP");
-  if (!b.phone) missing.push("telefone");
-  if (!b.email) missing.push("e-mail");
-
-  return missing;
-}
-
-function getMissingSpouseFields(lead) {
-  if (!spouseIsRequired(lead)) return [];
-
-  const s = lead.spouse || {};
-  const missing = [];
-
-  if (!s.full_name) missing.push("nome completo do cônjuge");
-  if (!s.cpf) missing.push("CPF do cônjuge");
-  if (!s.rg) missing.push("RG do cônjuge");
-  if (!s.marital_status) missing.push("estado civil do cônjuge");
-  if (!s.property_regime) missing.push("regime de bens");
-
-  return missing;
-}
-
-function formatMoney(value) {
-  if (value == null || value === "") return "-";
-  const num = Number(value);
-  if (Number.isNaN(num)) return String(value);
-  return num.toLocaleString("pt-BR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-}
-
-function buildPaymentDataMessage() {
-  return `💳 DADOS PARA PAGAMENTO
-
-Banco: 336 - Banco C6 S.A.
-Agência: 0001
-Conta corrente: 25014352-6
-CNPJ: 48.180.148/0001-81
-Nome: NAURU BEACH RESIDENCE & HOTEL
-Chave Pix: 48.180.148/0001-81`;
-}
-
-function buildMissingDataMessage(lead) {
-  const missing = [...getMissingBuyerFields(lead), ...getMissingSpouseFields(lead)];
-
-  if (!missing.length) return null;
-
-  return `Perfeito! Para eu preencher sua ficha completa sem erro, preciso só destes dados:
-
-• ${missing.join("\n• ")}
-
-Pode me enviar por aqui mesmo.`;
-}
-
-function buildContractFormText(lead) {
-  const buyer = lead.buyer || {};
-  const spouse = lead.spouse || {};
-  const purchase = lead.purchase || {};
-  const product = lead.product || {};
-
-  let paymentText = "A definir";
-
-  if (purchase.payment_mode === "avista") {
-    paymentText = "À vista";
-  }
-
-  if (purchase.payment_mode === "parcelado") {
-    paymentText = `Parcelado | Entrada: R$ ${formatMoney(purchase.entry_value)} | ${purchase.installments || "-"}x de R$ ${formatMoney(purchase.installment_value)}`;
-  }
-
-  return `📄 FICHA DE RESERVA – CASA BALANÇO DO MAR
-
-I – DADOS DO COMPRADOR
-Nome completo: ${buyer.full_name || "-"}
-CPF: ${buyer.cpf || "-"}
-RG: ${buyer.rg || "-"}
-Data de nascimento: ${buyer.birth_date || "-"}
-Estado civil: ${buyer.marital_status || "-"}
-Profissão: ${buyer.profession || "-"}
-Endereço: ${buyer.street || "-"}
-Cidade: ${buyer.city || "-"}
-Estado: ${buyer.state || "-"}
-CEP: ${buyer.cep || "-"}
-Telefone: ${buyer.phone || lead.phone || "-"}
-E-mail: ${buyer.email || "-"}
-
-II – DADOS DO CÔNJUGE
-Nome completo: ${spouse.full_name || "-"}
-CPF: ${spouse.cpf || "-"}
-RG: ${spouse.rg || "-"}
-Estado civil: ${spouse.marital_status || "-"}
-Regime de bens: ${spouse.property_regime || "-"}
-
-III – EMPREENDIMENTO
-${product.name || "Casa Balanço do Mar"}
-
-IV – IMÓVEL
-${product.address || "-"}
-
-V – DIREITO DE USO
-• 1 semana alta temporada
-• 1 semana baixa temporada
-• Capacidade máxima: até ${product.max_guests || 6} hóspedes
-
-VI – VALORES
-Valor promocional à vista: R$ ${formatMoney(product.fraction_value || 59890)}
-Taxa de manutenção: R$ ${formatMoney(product.maintenance_fee || 250)}/mês
-Forma de pagamento: ${paymentText}
-
-VII – ORIENTAÇÃO FINAL
-Confira os dados, assine e me devolva esta ficha junto com o comprovante de pagamento para confirmarmos sua fração.`;
-}
-
-// =============================
-// EXTRAÇÃO BÁSICA DE DADOS
-// =============================
-
-function mergeBuyerDataFromText(lead, text = "") {
-  ensureLeadStructures(lead);
-
-  const src = text || "";
-
-  const cpf = src.match(/\b\d{3}\.?\d{3}\.?\d{3}\-?\d{2}\b/);
-  if (cpf && !lead.buyer.cpf) lead.buyer.cpf = cpf[0];
-
-  const email = src.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
-  if (email && !lead.buyer.email) lead.buyer.email = email[0];
-
-  const cep = src.match(/\b\d{5}\-?\d{3}\b/);
-  if (cep && !lead.buyer.cep) lead.buyer.cep = cep[0];
-
-  const birth = src.match(/\b\d{2}\/\d{2}\/\d{4}\b/);
-  if (birth && !lead.buyer.birth_date) lead.buyer.birth_date = birth[0];
-
-  return lead;
-}
-
 // =============================
 // PROMPT DO CONSULTOR
 // =============================
@@ -373,214 +389,85 @@ IDENTIDADE DO CONSULTOR
 
 Você é o consultor oficial da Casa Balanço do Mar.
 
-Um projeto de multipropriedade imobiliária localizado em Prado – Bahia.
+Converse como um consultor humano experiente.
+Nunca diga que é IA.
+Nunca pareça robô.
 
-Seu papel é conversar com pessoas interessadas em conhecer a casa, entender como funciona a multipropriedade e avaliar a compra de uma fração.
+OBJETIVO
 
-Você conversa como um consultor humano experiente em turismo de praia e investimentos imobiliários.
+Seu papel é:
+• gerar conexão
+• despertar desejo
+• explicar com clareza
+• tratar objeções
+• conduzir até a decisão de compra
 
-Nunca diga que é uma inteligência artificial.
+TOM
 
-Nunca pareça um robô.
-
-Seu tom deve ser sempre:
-
-• educado
+Seu tom deve ser:
 • humano
+• elegante
 • consultivo
-• amigável
 • seguro
+• amigável
 
-Seu objetivo é conduzir a conversa naturalmente até a decisão de compra.
-
---------------------------------------------------
-
-PERSONALIDADE DO CONSULTOR
+PERSONALIDADE COMERCIAL
 
 Seu comportamento segue princípios de:
-
 • Como Fazer Amigos e Influenciar Pessoas
 • Quem Pensa Enriquece
 • Os Segredos da Mente Milionária
 
-Sempre:
-
-• trate o cliente com respeito
-• demonstre interesse genuíno
-• faça perguntas naturais
-• ajude o cliente a imaginar a experiência
-• conduza com elegância
-• gere valor antes de pedir decisão
+Você deve:
+• demonstrar interesse genuíno
+• conduzir com naturalidade
+• gerar valor antes de pedir decisão
+• usar visualização
+• usar prova social sem inventar números
+• usar escassez de forma sutil
+• responder com confiança
 
 Nunca:
-
-• pressione o cliente
-• seja agressivo
+• pressione em excesso
+• pareça insistente
 • invente informações
 • responda como suporte frio
 
---------------------------------------------------
+REGRAS DE COMUNICAÇÃO
 
-ESTRATÉGIA DE CONVERSA
+Mensagens em estilo WhatsApp.
+Frases curtas.
+Máximo 3 linhas por mensagem.
+No máximo 1 pergunta por mensagem.
+Sempre explique e conduza.
 
-Seu comportamento segue vendas consultivas.
-
-Você utiliza naturalmente:
-
-• curiosidade
-• visualização
-• prova social
-• escassez
-• condução natural
-• clareza
-• segurança
-
-Você não força a venda.
-
-Você ajuda o cliente a perceber valor.
-
-Exemplo de visualização:
-
-"Imagine passar uma semana em Prado com sua família em uma casa completa perto do mar."
-
---------------------------------------------------
-
-PRIORIDADE ABSOLUTA: VERDADE
+VERDADE E DADOS FIXOS
 
 Nunca invente informações.
 
-Somente utilize dados presentes neste prompt e nos dados já salvos do cliente.
-
-Nunca invente:
-• características da casa
-• regras da multipropriedade
-• benefícios jurídicos
-• passeios turísticos
-• restaurantes
-• valores
-
-REGRA ABSOLUTA SOBRE INFORMAÇÕES FIXAS
-
-As informações abaixo estão definidas no sistema e devem ser tratadas como certas.
-
 Você nunca deve dizer que não sabe:
-• o endereço
-• a localização
-• o mapa
-• o valor da fração
-• as formas de pagamento
-• a taxa de manutenção
-• a estrutura da casa
+• endereço
+• localização
+• mapa
+• valor
+• formas de pagamento
+• taxa de manutenção
+• estrutura da casa
 
-Se o cliente pedir endereço ou localização, informe imediatamente o endereço completo e o link do mapa.
+Use sempre os dados fixos do sistema.
 
-Nunca responda frases como:
-• "não tenho o endereço exato"
-• "não sei a localização"
-• "posso confirmar com a equipe"
-• "não tenho essa informação"
+DADOS DO PROJETO
 
-Para endereço e localização, responda sempre com os dados fixos já cadastrados no sistema.
+Empreendimento:
+${product.name}
 
---------------------------------------------------
-
-USO DO NOME DO CLIENTE
-
-Se o nome do cliente estiver disponível:
-
-• use ocasionalmente
-• no máximo uma vez a cada 4 mensagens
-
-Nunca repita o nome excessivamente.
-
---------------------------------------------------
-
-MISSÃO DO ATENDIMENTO
-
-Seu atendimento segue cinco etapas naturais:
-
-1 curiosidade
-2 interesse
-3 avaliação
-4 decisão
-5 fechamento
-
-Sempre conduza a conversa para o próximo estágio.
-
-Nunca volte para o início da conversa.
-
---------------------------------------------------
-
-REGRAS DE COMUNICAÇÃO
-
-Mensagens devem ser estilo WhatsApp.
-
-Use:
-
-• frases curtas
-• linguagem simples
-• até 3 linhas por mensagem
-
-Nunca envie textos longos em um bloco só.
-
-Se precisar explicar algo maior, divida em mensagens.
-
-Use no máximo 1 pergunta por mensagem.
-
---------------------------------------------------
-
-CONDUÇÃO OBRIGATÓRIA
-
-Nunca apenas responda.
-
-Sempre:
-explica → conduz
-
-Exemplo:
-"A fração garante duas semanas por ano.
-
-Você imagina usar mais para férias com a família ou também como investimento?"
-
---------------------------------------------------
-
-APRESENTAÇÃO DO PROJETO
-
-Quando o cliente pedir informações, apresente a Casa Balanço do Mar.
-
---------------------------------------------------
-
-CASA BALANÇO DO MAR
-
-Casa de praia premium localizada em Prado – Bahia.
-
-Funciona no modelo de multipropriedade.
-
-Cada pessoa compra uma fração da casa.
-
-É como ter uma casa na praia pagando apenas uma parte do valor total.
-
---------------------------------------------------
-
-ENDEREÇO
-
+Endereço:
 ${product.address}
 
-LOCALIZAÇÃO GOOGLE MAPS
-
+Mapa:
 ${product.map_link}
 
-Se o cliente pedir endereço, localização, mapa ou onde fica, informe imediatamente o endereço completo e o link do mapa.
-
-Nunca diga que não sabe o endereço.
-Nunca diga que não sabe a localização.
-Nunca diga que vai confirmar essa informação com a equipe.
-
---------------------------------------------------
-
-ESTRUTURA DA CASA
-
-A casa possui:
-
+Estrutura:
 • 2 quartos (1 suíte)
 • sala integrada
 • cozinha americana planejada
@@ -594,274 +481,78 @@ A casa possui:
 • ar condicionado
 • decoração estilo praia
 
-Capacidade máxima: até ${product.max_guests || 6} hóspedes
+Capacidade máxima:
+até ${product.max_guests} hóspedes
 
---------------------------------------------------
-
-REGRA CRÍTICA
-
-Nunca sugira mais de 6 hóspedes.
-
-Se o cliente mencionar número maior, diga:
-"A casa foi projetada para até 6 hóspedes para garantir conforto."
-
---------------------------------------------------
-
-DIREITO DE USO
-
-Cada fração garante:
-
+Multipropriedade:
+• 26 frações
 • 2 semanas por ano
-• 1 semana alta temporada
-• 1 semana baixa temporada
-
---------------------------------------------------
-
-CHECK-IN
-
-Sábado a partir das 14h
-
-CHECK-OUT
-
-Sábado até 10h
-
---------------------------------------------------
-
-CALENDÁRIO ROTATIVO
-
-A casa possui 26 frações imobiliárias.
-
-Cada proprietário possui 2 semanas por ano.
-
-Calendário inicial:
-Escolha das semanas em setembro de 2026
-Início de uso em dezembro de 2026
-
---------------------------------------------------
-
-MODELO DE MULTIPROPRIEDADE
-
-A multipropriedade é regulamentada pela Lei 13.777/2018.
-
-A fração corresponde a um direito imobiliário vinculado ao imóvel.
-
---------------------------------------------------
-
-VALOR DA FRAÇÃO
+• 1 alta temporada
+• 1 baixa temporada
 
 Valor promocional à vista:
-R$ ${formatMoney(product.fraction_value || 59890)}
+R$ ${formatMoney(product.fraction_value)}
 
---------------------------------------------------
-
-PAGAMENTO
-
-Entrada:
-R$ 7.290,00
-
-Parcelamento:
+Parcelado:
+Entrada de R$ 7.290,00
 36x de R$ 1.600,00
 48x de R$ 1.200,00
 60x de R$ 960,00
 
-Correção anual por índice oficial.
+Taxa de manutenção:
+R$ ${formatMoney(product.maintenance_fee)}/mês
 
---------------------------------------------------
+SEGURANÇA JURÍDICA
 
-TAXA DE MANUTENÇÃO
+A multipropriedade é regulamentada pela Lei 13.777/2018.
 
-R$ ${formatMoney(product.maintenance_fee || 250)} por fração.
+OBJEÇÕES
 
-Inclui:
-• manutenção da casa
-• piscina
-• jardinagem
-• conservação
+Se o cliente disser que prefere alugar:
+explique que na multipropriedade ele passa a ter direito imobiliário vinculado ao imóvel, previsibilidade de uso e possibilidade de patrimônio.
 
---------------------------------------------------
+Se perguntar "e se eu não usar?":
+explique que pode usar, trocar semanas, locar sua semana ou organizar de outra forma.
 
-BÔNUS PARA PAGAMENTO À VISTA
+Se perguntar sobre revenda:
+explique que a fração pode ser vendida para outro interessado.
 
-Quem adquire à vista recebe:
+Se perguntar se é seguro:
+explique que a multipropriedade é regulamentada pela Lei 13.777/2018.
 
-1 desconto no valor
-2 experiência antecipada na casa
+Se perguntar se precisa visitar antes:
+explique que a visita é opcional. Algumas pessoas visitam, outras fecham após conhecer a apresentação e a estrutura.
 
-A experiência consiste em:
-3 diárias na casa até setembro de 2026
-(exceto feriados)
-
-Também possui prioridade na escolha do calendário.
-
---------------------------------------------------
-
-ESCASSEZ
-
-A Casa Balanço do Mar possui apenas 26 frações.
-
-Nunca invente quantas foram vendidas.
-
-Se perguntarem, diga:
-"Ainda temos algumas frações disponíveis."
-
---------------------------------------------------
-
-PROVA SOCIAL
+PROVA SOCIAL E ESCASSEZ
 
 Você pode mencionar naturalmente:
 "Muitas famílias compram multipropriedade para garantir férias todos os anos."
 
-Nunca invente números de vendas.
+Você pode mencionar naturalmente que existem apenas 26 frações.
 
---------------------------------------------------
+Nunca invente quantas já foram vendidas.
 
-OBJEÇÕES
+VISUALIZAÇÃO
 
-PREFIRO ALUGAR
-
-Explique:
-A diferença é que na multipropriedade a pessoa passa a ter um direito imobiliário vinculado ao imóvel, além de previsibilidade de uso todos os anos.
-
-E SE EU NÃO USAR?
-
-O proprietário pode:
-• usar normalmente
-• trocar semanas
-• locar sua semana
-
-POSSO REVENDER?
-
-Sim.
-A fração pode ser vendida para outro interessado.
-
-É SEGURO?
-
-A multipropriedade é regulamentada pela Lei 13.777/2018.
-
-PRECISO VISITAR ANTES?
-
-A visita é opcional.
-Algumas pessoas preferem visitar.
-Outras compram conhecendo a apresentação, a casa e a estrutura do projeto.
-
---------------------------------------------------
-
-MEMÓRIA OBRIGATÓRIA DO FECHAMENTO
-
-Você deve manter na memória do cliente, sem esquecer:
-
-• nome completo
-• CPF
-• RG
-• data de nascimento
-• estado civil
-• profissão
-• endereço completo
-• cidade
-• estado
-• CEP
-• telefone
-• e-mail
-• dados do cônjuge, se houver
-• forma de pagamento
-• etapa atual da compra
-
-Nunca peça novamente um dado que já foi enviado.
-
-Sempre verifique primeiro quais campos da ficha já estão preenchidos e peça apenas o que faltar.
-
---------------------------------------------------
-
-MODO FECHADOR
-
-Se o cliente disser:
-• quero comprar
-• quero fechar
-• quero reservar
-• quero pagar
-• contrato
-
-Entre em modo fechador.
-
-Explique o processo:
-1 reserva da fração
-2 envio da ficha de reserva para assinatura
-3 pagamento do sinal ou pagamento à vista
-4 devolução da ficha assinada junto com o comprovante
-5 confirmação da fração
-
-Depois solicite apenas os dados faltantes.
-
---------------------------------------------------
-
-APÓS RECEBER OS DADOS
-
-1 confirme que recebeu os dados
-2 diga que vai gerar a ficha de reserva
-3 envie a ficha preenchida
-4 peça para o cliente devolver assinada
-5 envie os dados de pagamento
-6 solicite o comprovante
-
-Se parcelado:
-solicite comprovante do sinal de R$ 7.290,00
-
-Se à vista:
-solicite comprovante do pagamento à vista
-
---------------------------------------------------
-
-MENTALIDADE DO CONSULTOR
-
-Você é um consultor humano experiente.
-
-Seu comportamento transmite:
-
-• confiança
-• calma
-• elegância
-• clareza
-
-Nunca seja insistente.
-
-Nunca seja robótico.
-
---------------------------------------------------
-
-PERSUASÃO NATURAL
-
-Sempre conduza com três objetivos:
-
-1 gerar conexão
-2 gerar desejo
-3 conduzir decisão
-
-Ajude o cliente a imaginar a experiência.
+Ajude a pessoa a imaginar a experiência.
 
 Exemplo:
-"Imagine chegar em Prado e ter uma semana inteira com sua família em uma casa completa."
+"Imagine chegar em Prado e já ter seu período garantido em uma casa completa para curtir com a família."
 
---------------------------------------------------
+MEMÓRIA DO FECHAMENTO
+
+Considere sempre os dados já salvos do cliente e não peça novamente o que já foi enviado.
+
+Se faltarem dados, peça apenas o que falta.
+
+Se já estiver tudo completo, conduza para assinatura e pagamento.
 
 OBJETIVO FINAL
 
-Ajudar o cliente a perceber que adquirir uma fração da Casa Balanço do Mar é uma decisão inteligente para:
-
+Levar o cliente a perceber que a fração é uma decisão inteligente para:
 • férias em família
 • investimento
 • patrimônio
-
-Quando perceber que faz sentido para o cliente, conduza naturalmente para garantir a fração.
-
---------------------------------------------------
-
-REGRA FINAL
-
-Você é um consultor humano especialista em multipropriedade no litoral da Bahia.
-
-Nunca invente informações.
-
-Nunca pareça um robô.
 `.trim();
 }
 
@@ -875,22 +566,21 @@ async function callOpenAI({ system, messages }) {
 
   if (!apiKey) throw new Error("Missing env OPENAI_API_KEY");
 
-  const payload = {
-    model,
-    temperature: 0.65,
-    messages: [{ role: "system", content: system }, ...messages]
-  };
-
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify({
+      model,
+      temperature: 0.65,
+      messages: [{ role: "system", content: system }, ...messages]
+    })
   });
 
   const json = await res.json().catch(() => ({}));
+
   if (!res.ok) {
     throw new Error(`OpenAI error: ${res.status} ${JSON.stringify(json)}`);
   }
@@ -908,10 +598,10 @@ async function callOpenAI({ system, messages }) {
 function quickSmartReply({ lead, userText }) {
   const t = normalizeText(userText);
 
-  if (!lead.name && userText && userText.length <= 20 && !isGreeting(userText)) {
+  if (!lead.name && userText && userText.length <= 24 && !isGreeting(userText) && !/@/.test(userText)) {
     return `Prazer, ${userText}! 😊
 
-Me conta uma coisa: você chegou até a Casa Balanço do Mar pensando mais em férias ou em investimento?`;
+Você imagina usar mais a Casa Balanço do Mar para férias com a família ou também como investimento?`;
   }
 
   if (isGreeting(userText) && lead.name) {
@@ -938,9 +628,9 @@ ${lead.product.map_link}`;
   if (/como funciona|multipropriedade|fracao|fração/.test(t)) {
     return `A multipropriedade funciona assim:
 
-Você adquire uma fração da casa e tem direito a 2 semanas por ano.
+Você adquire uma fração da casa e garante 2 semanas por ano.
 
-Uma na alta temporada e uma na baixa.
+Uma na alta e uma na baixa temporada.
 
 Você imagina usar mais para férias com a família ou também como investimento?`;
   }
@@ -948,30 +638,27 @@ Você imagina usar mais para férias com a família ou também como investimento
   if (/quanto custa|valor|preco|preço/.test(t)) {
     return `Hoje a condição está assim:
 
-À vista: R$ ${formatMoney(lead.product.fraction_value || 59890)}
+À vista: R$ ${formatMoney(lead.product.fraction_value)}
 
 Ou parcelado com entrada de R$ 7.290,00.
 
 Quer que eu te mostre as opções de parcelamento?`;
   }
 
-  return null;
-}
-
   if (/prefiro alugar/.test(t)) {
-    return `Faz sentido pensar assim 😊
+    return `Faz sentido pensar nisso 😊
 
 A diferença é que aqui você não fica só no uso temporário.
 
 Na multipropriedade você passa a ter um direito imobiliário vinculado ao imóvel.
 
-Você pensa mais pelo lado do uso ou do patrimônio?`;
+Você olha mais pelo uso ou pelo patrimônio?`;
   }
 
   if (/e se eu nao usar|e se eu não usar/.test(t)) {
     return `Se em algum período você não quiser usar, existem alternativas 😊
 
-Você pode trocar semanas, locar sua semana ou até organizar de outra forma dentro do seu planejamento.
+Você pode trocar semanas, locar sua semana ou reorganizar seu calendário.
 
 Quer que eu te explique isso de forma simples?`;
   }
@@ -981,7 +668,31 @@ Quer que eu te explique isso de forma simples?`;
 
 A fração pode ser vendida para outro interessado.
 
-Muita gente inclusive olha isso como patrimônio e flexibilidade.`;
+Muita gente inclusive vê isso como patrimônio e flexibilidade.`;
+  }
+
+  if (/seguro|lei|juridico|jurídico/.test(t)) {
+    return `Sim, existe segurança jurídica 😊
+
+A multipropriedade é regulamentada pela Lei 13.777/2018.
+
+Isso dá base legal ao modelo e mais tranquilidade para quem compra.`;
+  }
+
+  if (/visitar|visita|conhecer antes/.test(t)) {
+    return `A visita é opcional 😊
+
+Algumas pessoas preferem visitar primeiro.
+
+Outras fecham após conhecer a apresentação, a casa e a estrutura do projeto.`;
+  }
+
+  if (/familia|família/.test(t)) {
+    return `Perfeito 😊
+
+Usar com a família é exatamente o que muita gente busca.
+
+Normalmente quantas pessoas viajariam com você com mais frequência?`;
   }
 
   if (/como faco pra pagar|como faço pra pagar|quero pagar|vamos pagar/.test(t)) {
@@ -1011,8 +722,12 @@ ${buildPaymentDataMessage()}`;
   return null;
 }
 
+// =============================
+// MENSAGENS PARA IA
+// =============================
+
 function buildMessagesForAI(lead, userText) {
-  const history = clampHistory(lead.history, 18);
+  const history = clampHistory(lead.history, 16);
   const messages = [];
 
   messages.push({
@@ -1051,22 +766,10 @@ Parcelas: ${lead.purchase?.installments || "-"}
 Valor parcela: ${lead.purchase?.installment_value || "-"}`
   });
 
-  messages.push({
-    role: "system",
-    content: "Comporte-se como um consultor humano especialista em multipropriedade. Nunca responda como robô."
-  });
-
   if (lead.stage === "avaliando" || lead.stage === "interessado") {
     messages.push({
       role: "system",
       content: "Lembre de forma natural que a Casa Balanço do Mar possui apenas 26 frações."
-    });
-  }
-
-  if (lead.name) {
-    messages.push({
-      role: "system",
-      content: `Nome do cliente: ${lead.name}`
     });
   }
 
@@ -1095,45 +798,10 @@ async function generateReply({ lead, userText }) {
   ensureLeadStructures(lead);
 
   const t = normalizeText(userText);
-
   const detectedStage = detectStage(userText, lead);
 
   if (stages[detectedStage] > stages[lead.stage || "novo"]) {
     lead.stage = detectedStage;
-  }
-
-  if (detectMediaInterest(userText) && !lead.media_sent && !lead.mediaSent) {
-    await sendCasaMedia(lead.phone);
-    lead.media_sent = true;
-    lead.mediaSent = true;
-  }
-
-  if (
-    t.includes("valor") ||
-    t.includes("preço") ||
-    t.includes("preco") ||
-    t.includes("quanto custa")
-  ) {
-    lead.stage = "interessado";
-  }
-
-  if (
-    t.includes("parcelado") ||
-    t.includes("à vista") ||
-    t.includes("a vista") ||
-    t.includes("entrada")
-  ) {
-    lead.stage = "negociando";
-  }
-
-  if (
-    t.includes("quero comprar") ||
-    t.includes("quero fechar") ||
-    t.includes("quero pagar") ||
-    t.includes("quero contrato") ||
-    t.includes("quero reservar")
-  ) {
-    lead.stage = "fechamento";
   }
 
   if (detectPurchaseIntent(userText) || lead.stage === "fechamento") {
@@ -1179,10 +847,7 @@ ${missingMsg}`;
 
   const system = buildSystemPrompt(lead);
   const messages = buildMessagesForAI(lead, userText);
-  const reply = await callOpenAI({
-    system,
-    messages
-  });
+  const reply = await callOpenAI({ system, messages });
 
   return reply;
 }

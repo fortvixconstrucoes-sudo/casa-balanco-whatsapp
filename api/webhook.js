@@ -175,17 +175,19 @@ module.exports = async (req, res) => {
     // DETECTORES INTELIGENTES
     // ==================================
 
-   const detect = {
+const detect = {
 
-video:/\b(video|videos|vídeo|vídeos|tour)\b/.test(t)
-  
-photos:/\b(foto|fotos|imagem|imagens)\b/.test(t),
+video:/\b(video|videos|vídeo|vídeos|tour)\b/.test(t),
 
-media:/\b(ver|mostrar|mostra|me mostra|quero ver|tem foto|tem video)\b/.test(t),
+photos:/foto|fotos|imagem|imagens/.test(t),
 
-interest:/\b(interesse|tenho interesse|quero saber|quero entender|como funciona)\b/.test(t),
+media:/ver|mostrar|mostra|me mostra|quero ver/.test(t),
 
-hotLead:/\b(comprar|fechar|reservar|pagar|contrato|a vista|parcelado)\b/.test(t)
+address:/endereço|onde fica|localização exata|qual rua|mapa/.test(t),
+
+interest:/interesse|tenho interesse|quero saber|como funciona/.test(t),
+
+hotLead:/vou fechar|quero comprar|quero fechar|quero reservar|quero pagar|manda contrato|à vista|parcelado|vamos fechar/.test(t)
 
 }
 
@@ -227,6 +229,33 @@ await sendWhatsAppImage(from,banner)
 }
 
 await sendWhatsAppVideo(from,videoCasa)
+
+return res.status(200).json({ok:true})
+
+}
+
+    // ==================================
+// CLIENTE PEDIU ENDEREÇO
+// ==================================
+
+if(detect.address){
+
+await sendWhatsAppText(
+from,
+`A Casa Balanço do Mar fica em:
+
+Rua T17, Quadra 26, Lote 02B
+Bairro Basevi
+Prado – Bahia
+CEP 45980-000
+
+A casa fica perto das praias e do centro de Prado 😊`
+)
+
+await sendWhatsAppText(
+from,
+`Você já conhece Prado ou seria sua primeira vez na região?`
+)
 
 return res.status(200).json({ok:true})
 

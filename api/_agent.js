@@ -166,7 +166,7 @@ function detectMediaInterest(text){
 
 const t = normalizeText(text)
 
-return /\b(foto|fotos|imagem|imagens|video|ver a casa|me mostra|mostrar)\b/.test(t)
+return /\b(foto|fotos|imagem|imagens|video|vídeo|tour|mostrar|ver a casa|me mostra)\b/.test(t)
 
 }
 
@@ -869,6 +869,22 @@ content:`ESTÁGIO ATUAL DO CLIENTE: ${lead.stage}`
 })
 
 messages.push(humanMode)
+
+  messages.push({
+role:"system",
+content:`Informação fixa do projeto:
+
+Endereço da Casa Balanço do Mar:
+Rua T17, Quadra 26, Lote 02B
+Bairro Basevi
+Prado – Bahia
+CEP 45980-000
+
+Localização Google Maps:
+https://www.google.com/maps?q=-17.324118246682865,-39.22221224575318
+
+Nunca diga que não sabe o endereço.`
+})
   
 // =========================
 // ESCASSEZ AUTOMÁTICA

@@ -194,33 +194,26 @@ function applyManualFieldExtraction(lead, userText) {
   lead.spouse = lead.spouse || {};
   lead.purchase = lead.purchase || {};
 
-  // e-mail
   const email = txt.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
   if (email) lead.buyer.email = email[0];
 
-  // cpf
   const cpf = txt.match(/\b\d{3}\.?\d{3}\.?\d{3}\-?\d{2}\b/);
   if (cpf && !lead.buyer.cpf) lead.buyer.cpf = cpf[0];
 
-  // cep
   const cep = txt.match(/\b\d{5}\-?\d{3}\b/);
   if (cep && !lead.buyer.cep) lead.buyer.cep = cep[0];
 
-  // nascimento
   const birth = txt.match(/\b\d{2}\/\d{2}\/\d{4}\b/);
   if (birth && !lead.buyer.birth_date) lead.buyer.birth_date = birth[0];
 
-  // rg
   const rgLabel = txt.match(/\brg[:\s]*([0-9.\-xX]{5,20})/i);
   if (rgLabel && !lead.buyer.rg) lead.buyer.rg = rgLabel[1].trim();
 
-  // telefone
   const phoneMatch = txt.match(/(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?(?:9?\d{4}\-?\d{4})/);
   if (phoneMatch && !lead.buyer.phone) {
     lead.buyer.phone = phoneMatch[0].trim();
   }
 
-  // estado civil
   if (/solteiro|solteira/.test(lower) && !lead.buyer.marital_status) {
     lead.buyer.marital_status = "Solteiro(a)";
   }
@@ -234,7 +227,6 @@ function applyManualFieldExtraction(lead, userText) {
     lead.buyer.marital_status = "Divorciado(a)";
   }
 
-  // forma de pagamento
   if (/a vista|avista/.test(lower)) {
     lead.purchase.payment_mode = "avista";
   } else if (/parcelado|parcelar|entrada/.test(lower)) {
@@ -257,10 +249,9 @@ function applyManualFieldExtraction(lead, userText) {
     lead.buyer.phone = lead.phone;
   }
 
-  // captura mais livre de endereço
   if (!lead.buyer.street) {
     const addressLine = txt.match(
-      /\b(?:rua|avenida|av\.?|travessa|rodovia|estrada|alameda|loteamento|praça)\b[^\n]{8,120}/i
+      /\b(?:rua|avenida|av\.?|travessa|rodovia|estrada|alameda|loteamento|praça)\b[^\n]{8,140}/i
     );
     if (addressLine) {
       lead.buyer.street = addressLine[0].trim();
@@ -324,7 +315,6 @@ function applyManualFieldExtraction(lead, userText) {
     }
   }
 
-  // se mandou só o nome
   if (
     !lead.buyer.full_name &&
     txt &&
@@ -345,32 +335,65 @@ function applyManualFieldExtraction(lead, userText) {
 // =================================
 // DETECÇÃO DE INTENÇÃO
 // =================================
-function includesAny(t, arr) {
-  return arr.some((x) => t.includes(x));
-}
-
 function detectIntent(t) {
+  const tx = normalizeText(t);
+
   return {
-    video: includesAny(t, ["video", "tour"]),
-    photos: includesAny(t, ["foto", "fotos", "imagem", "imagens"]),
-    address: includesAny(t, ["endereco", "endereço", "onde fica", "localizacao", "localização", "mapa"]),
-    price: includesAny(t, ["preco", "preço", "valor", "quanto custa"]),
-    invest: includesAny(t, ["investir", "retorno", "renda", "investimento"]),
-    visit: includesAny(t, ["visitar", "visita"]),
-    buy: includesAny(t, [
-      "quero comprar",
-      "quero fechar",
-      "vamos fechar",
-      "reservar",
-      "quero pagar",
-      "como faco pra pagar",
-      "como faço pra pagar",
-      "contrato",
-      "a vista",
-      "avista",
-      "parcelado"
-    ]),
-    fullMedia: includesAny(t, ["me mostra tudo", "me envie tudo", "apresentacao completa", "apresentação completa"])
+    video:
+      /(^|\b)(video|tour)(\b|$)/.test(tx) ||
+      tx.includes("tem video") ||
+      tx.includes("tem um video"),
+
+    photos:
+      /(^|\b)(foto|fotos|imagem|imagens)(\b|$)/.test(tx) ||
+      tx.includes("tem foto") ||
+      tx.includes("tem fotos") ||
+      tx.includes("manda foto") ||
+      tx.includes("manda fotos"),
+
+    address:
+      tx.includes("localizacao") ||
+      tx.includes("endereco") ||
+      tx.includes("onde fica") ||
+      tx.includes("mapa") ||
+      tx.includes("qual a localizacao") ||
+      tx.includes("tem a localizacao") ||
+      tx.includes("qual endereco") ||
+      tx.includes("tem endereco"),
+
+    price:
+      tx.includes("preco") ||
+      tx.includes("valor") ||
+      tx.includes("quanto custa"),
+
+    invest:
+      tx.includes("investir") ||
+      tx.includes("retorno") ||
+      tx.includes("renda") ||
+      tx.includes("investimento"),
+
+    visit:
+      tx.includes("visitar") ||
+      tx.includes("visita"),
+
+    buy:
+      tx.includes("quero comprar") ||
+      tx.includes("quero fechar") ||
+      tx.includes("vamos fechar") ||
+      tx.includes("reservar") ||
+      tx.includes("quero pagar") ||
+      tx.includes("como faco pra pagar") ||
+      tx.includes("como faço pra pagar") ||
+      tx.includes("contrato") ||
+      tx.includes("a vista") ||
+      tx.includes("avista") ||
+      tx.includes("parcelado"),
+
+    fullMedia:
+      tx.includes("me mostra tudo") ||
+      tx.includes("me envie tudo") ||
+      tx.includes("apresentacao completa") ||
+      tx.includes("apresentação completa")
   };
 }
 
@@ -384,6 +407,16 @@ async function sendAllBanners(to) {
 }
 
 async function handleDirectMediaIntent({ from, lead, detect }) {
+  if (detect.address) {
+    await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
+    await sendWhatsAppText(from, CASA_MAP_TEXT);
+
+    lead.sent_map = true;
+    lead.last_message = nowISO();
+    await upsertLead(lead);
+    return true;
+  }
+
   if (detect.fullMedia) {
     await sendWhatsAppText(from, "Vou te enviar a apresentação completa da casa 👇");
     await sendAllBanners(from);
@@ -437,16 +470,6 @@ async function handleDirectMediaIntent({ from, lead, detect }) {
     return true;
   }
 
-  if (detect.address) {
-    await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
-    await sendWhatsAppText(from, CASA_MAP_TEXT);
-
-    lead.sent_map = true;
-    lead.last_message = nowISO();
-    await upsertLead(lead);
-    return true;
-  }
-
   return false;
 }
 
@@ -488,7 +511,9 @@ async function handleDirectClosing({ from, lead, t }) {
   const missingMsg = buildMissingDataMessage(lead);
 
   if (
-    /quero pagar|como faco pra pagar|como faço pra pagar|contrato|quero fechar|quero comprar|reservar|a vista|avista|parcelado/.test(t)
+    /quero pagar|como faco pra pagar|como faço pra pagar|contrato|quero fechar|quero comprar|reservar|a vista|avista|parcelado/.test(
+      t
+    )
   ) {
     if (missingMsg) {
       await sendWhatsAppText(from, `${FECHAMENTO_INTRO}
@@ -537,9 +562,6 @@ ${missingMsg}`
 // =================================
 module.exports = async (req, res) => {
   try {
-    // ===============================
-    // VERIFICAÇÃO META
-    // ===============================
     if (req.method === "GET") {
       const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
       const mode = req.query["hub.mode"];
@@ -590,9 +612,9 @@ module.exports = async (req, res) => {
     let userText = text || "";
     let sourceLabel = "";
 
-    // ===============================
+    // =================================
     // DOCUMENTO PDF
-    // ===============================
+    // =================================
     if (type === "document" && documentId) {
       const buffer = await downloadWhatsAppFile(documentId);
       const pdfText = await readPDF(buffer);
@@ -604,27 +626,26 @@ module.exports = async (req, res) => {
       sourceLabel = "documento";
     }
 
-    // ===============================
+    // =================================
     // IMAGEM
-    // ===============================
+    // =================================
     if (type === "image" && imageId) {
       const buffer = await downloadWhatsAppFile(imageId);
       const imgText = await readImage(buffer);
 
-      if (imgText) {
+      if (imgText && imgText.trim().length > 12) {
         lead = mergeBuyerDataFromText(lead, imgText);
         lead = applyManualFieldExtraction(lead, imgText);
         userText = imgText;
+        sourceLabel = "imagem";
       } else {
-        userText = "Cliente enviou imagem.";
+        userText = text || "Cliente enviou imagem.";
       }
-
-      sourceLabel = "imagem";
     }
 
-    // ===============================
+    // =================================
     // ÁUDIO
-    // ===============================
+    // =================================
     if (type === "audio" && audioId) {
       const buffer = await downloadWhatsAppFile(audioId);
       const transcript = await transcribeAudio(buffer, audioMimeType);
@@ -639,9 +660,9 @@ module.exports = async (req, res) => {
       sourceLabel = "áudio";
     }
 
-    // ===============================
+    // =================================
     // EXTRAÇÃO GERAL
-    // ===============================
+    // =================================
     lead = applyManualFieldExtraction(lead, userText);
 
     const t = normalizeText(userText);
@@ -655,9 +676,9 @@ module.exports = async (req, res) => {
     else if (lead.score >= 3) lead.stage = "interessado";
     else if (lead.score >= 1) lead.stage = "curioso";
 
-    // ===============================
+    // =================================
     // HISTÓRICO USER
-    // ===============================
+    // =================================
     lead.history = clampHistory(
       [
         ...(lead.history || []),
@@ -673,9 +694,9 @@ module.exports = async (req, res) => {
     lead.last_message = nowISO();
     lead = await upsertLead(lead);
 
-    // ===============================
+    // =================================
     // FLUXO DIRETO DE DOCUMENTO / IMAGEM / ÁUDIO
-    // ===============================
+    // =================================
     if (sourceLabel) {
       const handledDocProgress = await handleDocumentDrivenProgress({
         from,
@@ -688,25 +709,25 @@ module.exports = async (req, res) => {
       }
     }
 
-    // ===============================
-    // FLUXOS DIRETOS DE MÍDIA/ENDEREÇO
-    // ===============================
+    // =================================
+    // FLUXOS DIRETOS DE MÍDIA / ENDEREÇO
+    // =================================
     const handledMedia = await handleDirectMediaIntent({ from, lead, detect });
     if (handledMedia) {
       return res.status(200).json({ ok: true });
     }
 
-    // ===============================
+    // =================================
     // FLUXO DIRETO DE FECHAMENTO
-    // ===============================
+    // =================================
     const handledClosing = await handleDirectClosing({ from, lead, t });
     if (handledClosing) {
       return res.status(200).json({ ok: true });
     }
 
-    // ===============================
+    // =================================
     // PROPOSTA AUTOMÁTICA
-    // ===============================
+    // =================================
     if ((lead.stage === "fechamento" || detect.buy) && !lead.proposal_sent) {
       await sendWhatsAppText(
         from,
@@ -734,9 +755,9 @@ Se fizer sentido para você, eu sigo agora com sua ficha.`
       return res.status(200).json({ ok: true });
     }
 
-    // ===============================
+    // =================================
     // IA CONSULTIVA
-    // ===============================
+    // =================================
     const reply = await generateReply({ lead, userText });
 
     if (/ficha preenchida|assine e me devolva/i.test(reply)) {
@@ -778,5 +799,3 @@ Se fizer sentido para você, eu sigo agora com sua ficha.`
     });
   }
 };
-
-

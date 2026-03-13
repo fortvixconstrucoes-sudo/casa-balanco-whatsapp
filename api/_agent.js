@@ -452,7 +452,6 @@ Nunca invente informações.
 Somente utilize dados presentes neste prompt e nos dados já salvos do cliente.
 
 Nunca invente:
-
 • características da casa
 • regras da multipropriedade
 • benefícios jurídicos
@@ -460,7 +459,28 @@ Nunca invente:
 • restaurantes
 • valores
 
-Se um dado não estiver definido no sistema, diga que vai confirmar.
+REGRA ABSOLUTA SOBRE INFORMAÇÕES FIXAS
+
+As informações abaixo estão definidas no sistema e devem ser tratadas como certas.
+
+Você nunca deve dizer que não sabe:
+• o endereço
+• a localização
+• o mapa
+• o valor da fração
+• as formas de pagamento
+• a taxa de manutenção
+• a estrutura da casa
+
+Se o cliente pedir endereço ou localização, informe imediatamente o endereço completo e o link do mapa.
+
+Nunca responda frases como:
+• "não tenho o endereço exato"
+• "não sei a localização"
+• "posso confirmar com a equipe"
+• "não tenho essa informação"
+
+Para endereço e localização, responda sempre com os dados fixos já cadastrados no sistema.
 
 --------------------------------------------------
 
@@ -545,15 +565,15 @@ ENDEREÇO
 
 ${product.address}
 
-Após informar o endereço, você pode conduzir naturalmente.
-
---------------------------------------------------
-
 LOCALIZAÇÃO GOOGLE MAPS
 
 ${product.map_link}
 
+Se o cliente pedir endereço, localização, mapa ou onde fica, informe imediatamente o endereço completo e o link do mapa.
+
 Nunca diga que não sabe o endereço.
+Nunca diga que não sabe a localização.
+Nunca diga que vai confirmar essa informação com a equipe.
 
 --------------------------------------------------
 
@@ -906,45 +926,6 @@ Você quer conhecer primeiro a casa ou entender como funciona a multipropriedade
 Como posso te chamar?`;
   }
 
-  if (
-    t.includes("paris") ||
-    t.includes("madri") ||
-    t.includes("espanha") ||
-    t.includes("viajar")
-  ) {
-    return `Viagem boa demais! 😊
-
-Aliás, muita gente que compra a fração faz isso justamente para ter férias garantidas todos os anos em Prado.
-
-Você pensa mais em usar a casa com a família ou também como investimento?`;
-  }
-
-  if (/^\d+$/.test(userText)) {
-    const n = parseInt(userText, 10);
-
-    if (n > 6) {
-      return `A casa foi projetada para até 6 hóspedes para garantir conforto 😊
-
-Quantas pessoas normalmente viajariam com você com mais frequência?`;
-    }
-  }
-
-  if (t.includes("familia")) {
-    return `Perfeito 😊
-
-Usar com a família é exatamente o que muita gente busca.
-
-Normalmente quantas pessoas viajariam com você?`;
-  }
-
-  if (detectMediaInterest(userText)) {
-    return `Claro! 😊
-
-Posso te mostrar algumas imagens e um vídeo rápido da casa.
-
-Você imagina usar mais para férias com a família ou também como investimento?`;
-  }
-
   if (/endereco|endereço|onde fica|localizacao|localização|mapa/.test(t)) {
     return `📍 A Casa Balanço do Mar fica em:
 
@@ -973,6 +954,9 @@ Ou parcelado com entrada de R$ 7.290,00.
 
 Quer que eu te mostre as opções de parcelamento?`;
   }
+
+  return null;
+}
 
   if (/prefiro alugar/.test(t)) {
     return `Faz sentido pensar assim 😊

@@ -1,109 +1,65 @@
-// ======================================
-// ENVIO DE MENSAGEM TEXTO
-// ======================================
+async function sendWhatsAppRequest(body){
 
-async function sendWhatsAppText(toPhone, text) {
+const token = process.env.WHATSAPP_TOKEN
+const phoneNumberId = process.env.ID_DO_NUMERO_DE_TELEFONE
 
-  const token = process.env.WHATSAPP_TOKEN
-  const phoneNumberId = process.env.ID_DO_NUMERO_DE_TELEFONE
+const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`
 
-  const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`
+const res = await fetch(url,{
+method:"POST",
+headers:{
+Authorization:`Bearer ${token}`,
+"Content-Type":"application/json"
+},
+body:JSON.stringify(body)
+})
 
-  const body = {
-    messaging_product: "whatsapp",
-    to: toPhone,
-    type: "text",
-    text: { body: text }
-  }
-
-  const res = await fetch(url,{
-    method:"POST",
-    headers:{
-      Authorization:`Bearer ${token}`,
-      "Content-Type":"application/json"
-    },
-    body:JSON.stringify(body)
-  })
-
-  return res.json()
+return res.json()
 
 }
 
 
-// ======================================
-// ENVIO DE IMAGEM
-// ======================================
+// TEXTO
+async function sendWhatsAppText(to,text){
 
-async function sendWhatsAppImage(toPhone, imageUrl) {
-
-  const token = process.env.WHATSAPP_TOKEN
-  const phoneNumberId = process.env.ID_DO_NUMERO_DE_TELEFONE
-
-  const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`
-
-  const body = {
-    messaging_product:"whatsapp",
-    to:toPhone,
-    type:"image",
-    image:{
-      link:imageUrl
-    }
-  }
-
-  const res = await fetch(url,{
-    method:"POST",
-    headers:{
-      Authorization:`Bearer ${token}`,
-      "Content-Type":"application/json"
-    },
-    body:JSON.stringify(body)
-  })
-
-  return res.json()
+return sendWhatsAppRequest({
+messaging_product:"whatsapp",
+to,
+type:"text",
+text:{body:text}
+})
 
 }
 
 
-// ======================================
-// ENVIO DE VIDEO
-// ======================================
+// IMAGEM
+async function sendWhatsAppImage(to,imageUrl){
 
-async function sendWhatsAppVideo(toPhone, videoUrl) {
-
-  const token = process.env.WHATSAPP_TOKEN
-  const phoneNumberId = process.env.ID_DO_NUMERO_DE_TELEFONE
-
-  const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`
-
-  const body = {
-    messaging_product:"whatsapp",
-    to:toPhone,
-    type:"video",
-    video:{
-      link:videoUrl
-    }
-  }
-
-  const res = await fetch(url,{
-    method:"POST",
-    headers:{
-      Authorization:`Bearer ${token}`,
-      "Content-Type":"application/json"
-    },
-    body:JSON.stringify(body)
-  })
-
-  return res.json()
+return sendWhatsAppRequest({
+messaging_product:"whatsapp",
+to,
+type:"image",
+image:{link:imageUrl}
+})
 
 }
 
 
-// ======================================
-// EXPORTAÇÃO
-// ======================================
+// VIDEO
+async function sendWhatsAppVideo(to,videoUrl){
+
+return sendWhatsAppRequest({
+messaging_product:"whatsapp",
+to,
+type:"video",
+video:{link:videoUrl}
+})
+
+}
+
 
 module.exports = {
-  sendWhatsAppText,
-  sendWhatsAppImage,
-  sendWhatsAppVideo
+sendWhatsAppText,
+sendWhatsAppImage,
+sendWhatsAppVideo
 }

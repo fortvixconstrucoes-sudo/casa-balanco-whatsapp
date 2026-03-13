@@ -7,7 +7,19 @@ const Tesseract = require("tesseract.js");
 
 
 // ==================================
-// BAIXAR ARQUIVO DO WHATSAPP
+// NORMALIZAR TEXTO PT-BR
+// ==================================
+
+function normalize(txt = "") {
+  return txt
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+
+// ==================================
+// BAIXAR ARQUIVO WHATSAPP
 // ==================================
 
 async function downloadWhatsAppFile(fileId) {
@@ -46,7 +58,7 @@ async function readPDF(buffer) {
 
 
 // ==================================
-// LER IMAGEM (OCR)
+// LER IMAGEM OCR
 // ==================================
 
 async function readImage(buffer) {
@@ -99,7 +111,7 @@ module.exports = async (req, res) => {
   try {
 
     // ==================================
-    // VERIFICAÇÃO DO WEBHOOK
+    // VERIFICAÇÃO WEBHOOK
     // ==================================
 
     if (req.method === "GET") {
@@ -140,266 +152,226 @@ module.exports = async (req, res) => {
     let userText = text || "";
 
 
-// ==================================
-// LINKS DOS BANNERS
-// ==================================
+    // ==================================
+    // LINKS DA CASA
+    // ==================================
 
-const banners = [
-"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/01_apresentacao_casa.png",
-"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/02_area_gourmet_piscina.png",
-"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/03_sala_cozinha.png",
-"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/04_quartos.png",
-"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/05_banheiros.png"
-];
+    const banners = [
+      "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/01_apresentacao_casa.png",
+      "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/02_area_gourmet_piscina.png",
+      "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/03_sala_cozinha.png",
+      "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/04_quartos.png",
+      "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/05_banheiros.png"
+    ];
 
-const videoCasa =
-"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/06_video_apresentacao.mp4";
+    const videoCasa =
+      "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/06_video_apresentacao.mp4";
 
 
-const t = userText.toLowerCase();
+    const t = normalize(userText);
+
 
     // ==================================
-// DETECTORES INTELIGENTES
-// ==================================
+    // DETECTORES INTELIGENTES
+    // ==================================
 
-const detect = {
+    const detect = {
 
-video: /video|vídeo/.test(t),
+      video: /\b(video|tour|filmagem)\b/.test(t),
 
-photos: /foto|fotos|imagem|imagens/.test(t),
+      photos: /\b(foto|fotos|imagem|imagens)\b/.test(t),
 
-media: /ver|mostrar|mostra|me mostra|quero ver|tem foto|tem video|tem vídeo/.test(t),
+      media: /\b(ver|mostrar|mostra|me mostra|quero ver|tem foto|tem video)\b/.test(t),
 
-interest: /interesse|tenho interesse|quero saber|quero entender|como funciona/.test(t),
+      interest: /\b(interesse|tenho interesse|quero saber|quero entender|como funciona)\b/.test(t),
 
-hotLead: /vou fechar|quero comprar|quero fechar|quero reservar|quero pagar|manda contrato|à vista|parcelado|vamos fechar/.test(t)
+      hotLead: /\b(vou fechar|quero comprar|quero fechar|quero reservar|quero pagar|manda contrato|a vista|parcelado|vamos fechar)\b/.test(t)
 
-};
+    };
 
 
-// ==================================
-// DETECTAR PEDIDO DE VIDEO
-// ==================================
+    // ==================================
+    // CLIENTE PEDIU VIDEO
+    // ==================================
 
-const wantsVideo = detect.video
+    if (detect.video) {
 
+      await sendWhatsAppText(
+        from,
+        "Vou te mostrar um vídeo rápido da Casa Balanço do Mar 👇"
+      );
 
-// ==================================
-// DETECTAR PEDIDO DE FOTOS
-// ==================================
+      await sendWhatsAppVideo(from, videoCasa);
 
-const wantsPhotos =
-t.includes("foto") ||
-t.includes("fotos") ||
-t.includes("imagem") ||
-t.includes("imagens") ||
-t.includes("ver fotos") ||
-t.includes("tem fotos");
+      await sendWhatsAppText(
+        from,
+        "Essa casa comporta até 6 pessoas. Você imagina usar mais para férias ou também como investimento?"
+      );
 
+      return res.status(200).json({ ok: true });
+    }
 
-// ==================================
-// CLIENTE PEDIU VIDEO
-// ==================================
 
-if(wantsVideo){
+    // ==================================
+    // CLIENTE PEDIU FOTOS
+    // ==================================
 
-await sendWhatsAppText(
-from,
-"Claro 😊 Vou te mostrar um vídeo rápido da Casa Balanço do Mar."
-);
+    if (detect.photos || detect.media) {
 
-await sendWhatsAppVideo(from,videoCasa);
+      await sendWhatsAppText(
+        from,
+        "Vou te mostrar algumas imagens da Casa Balanço do Mar 👇"
+      );
 
-await sendWhatsAppText(
-from,
-"Essa casa comporta até 6 pessoas. Você imagina usar mais para férias com a família ou também como investimento?"
-);
+      for (const banner of banners) {
+        await sendWhatsAppImage(from, banner);
+      }
 
-return res.status(200).json({ ok:true });
+      await sendWhatsAppText(
+        from,
+        "E aqui um vídeo rápido da casa para você sentir melhor o espaço 👇"
+      );
 
-}
+      await sendWhatsAppVideo(from, videoCasa);
 
+      await sendWhatsAppText(
+        from,
+        "Imagine passar uma semana em Prado com sua família em uma casa completa como essa. Você pensaria mais em férias ou investimento?"
+      );
 
-// ==================================
-// CLIENTE PEDIU FOTOS
-// ==================================
+      return res.status(200).json({ ok: true });
+    }
 
-if(wantsPhotos){
 
-await sendWhatsAppText(
-from,
-"Perfeito 😊 Vou te mostrar algumas imagens da Casa Balanço do Mar."
-);
+    // ==================================
+    // LER PDF
+    // ==================================
 
-for(const banner of banners){
-await sendWhatsAppImage(from,banner);
-}
+    if (type === "document" && documentId) {
 
-await sendWhatsAppText(
-from,
-"E aqui um vídeo rápido da casa para você sentir a experiência."
-);
+      const buffer = await downloadWhatsAppFile(documentId);
+      const pdfText = await readPDF(buffer);
 
-await sendWhatsAppVideo(from,videoCasa);
+      userText =
+        "O cliente enviou um documento com os seguintes dados:\n\n" + pdfText;
+    }
 
-await sendWhatsAppText(
-from,
-"Imagine passar uma semana em Prado com sua família em uma casa completa como essa. Você imagina usar mais para férias ou também como investimento?"
-);
 
-return res.status(200).json({ ok:true });
+    // ==================================
+    // LER IMAGEM
+    // ==================================
 
-}
+    if (type === "image" && imageId) {
 
+      const buffer = await downloadWhatsAppFile(imageId);
+      const imageText = await readImage(buffer);
 
-// ==================================
-// LER DOCUMENTO PDF
-// ==================================
+      userText =
+        "O cliente enviou uma imagem de documento com os seguintes dados:\n\n" + imageText;
+    }
 
-if (type === "document" && documentId) {
 
-const buffer = await downloadWhatsAppFile(documentId);
-const pdfText = await readPDF(buffer);
+    if (!userText) {
+      return res.status(200).json({ ok: true });
+    }
 
-userText =
-"O cliente enviou um documento com os seguintes dados:\n\n" + pdfText;
 
-}
+    // ==================================
+    // DETECTAR LEAD QUENTE
+    // ==================================
 
+    const isHotLead = detect.hotLead;
 
-// ==================================
-// LER IMAGEM OCR
-// ==================================
 
-if (type === "image" && imageId) {
+    // ==================================
+    // CARREGAR LEAD
+    // ==================================
 
-const buffer = await downloadWhatsAppFile(imageId);
-const imageText = await readImage(buffer);
+    let lead = await getLeadByPhone(from);
 
-userText =
-"O cliente enviou uma imagem de documento com os seguintes dados:\n\n" + imageText;
+    if (!lead) {
 
-}
+      lead = {
+        phone: from,
+        name: null,
+        stage: "novo",
+        history: [],
+        last_message: nowISO(),
+        followup1: false,
+        followup2: false
+      };
 
+    }
 
-if (!userText) {
-return res.status(200).json({ ok: true });
-}
+    if (!lead.name && profileName) {
+      lead.name = profileName;
+    }
 
 
-// ==================================
-// DETECTAR LEAD QUENTE
-// ==================================
+    // ==================================
+    // SALVAR MENSAGEM
+    // ==================================
 
-const hotSignals = [
-"vou querer",
-"vou fechar",
-"quero comprar",
-"quero fechar",
-"quero reservar",
-"quero pagar",
-"quero contrato",
-"à vista",
-"parcelado",
-"manda contrato",
-"tenho interesse",
-"vamos fechar"
-];
+    lead.history = clampHistory(
+      [
+        ...(lead.history || []),
+        { role: "user", content: userText, at: nowISO() }
+      ],
+      18
+    );
 
-const textLower = userText.toLowerCase();
+    lead.last_message = nowISO();
 
-const isHotLead = hotSignals.some(signal =>
-textLower.includes(signal)
-);
+    lead = await upsertLead(lead);
 
 
-// ==================================
-// CARREGAR LEAD
-// ==================================
+    // ==================================
+    // GERAR RESPOSTA IA
+    // ==================================
 
-let lead = await getLeadByPhone(from);
+    const reply = await generateReply({
+      lead,
+      userText
+    });
 
-if (!lead) {
-lead = {
-phone: from,
-name: null,
-stage: "novo",
-history: [],
-last_message: nowISO(),
-followup1: false,
-followup2: false
-};
-}
 
-if (!lead.name && profileName) {
-lead.name = profileName;
-}
+    // ==================================
+    // SALVAR RESPOSTA
+    // ==================================
 
+    lead.history = clampHistory(
+      [
+        ...(lead.history || []),
+        { role: "assistant", content: reply, at: nowISO() }
+      ],
+      18
+    );
 
-// ==================================
-// SALVAR MENSAGEM
-// ==================================
+    lead.last_message = nowISO();
 
-lead.history = clampHistory(
-[
-...(lead.history || []),
-{ role: "user", content: userText, at: nowISO() }
-],
-18
-);
+    await upsertLead(lead);
 
-lead.last_message = nowISO();
 
-lead = await upsertLead(lead);
+    // ==================================
+    // ENVIAR RESPOSTA
+    // ==================================
 
+    const parts = reply.split("\n\n");
 
-// ==================================
-// GERAR RESPOSTA
-// ==================================
+    for (const part of parts) {
+      if (part.trim()) {
+        await sendWhatsAppText(from, part.trim());
+      }
+    }
 
-const reply = await generateReply({
-lead,
-userText
-});
 
+    // ==================================
+    // ALERTA LEAD QUENTE
+    // ==================================
 
-// ==================================
-// SALVAR RESPOSTA
-// ==================================
+    if (isHotLead) {
 
-lead.history = clampHistory(
-[
-...(lead.history || []),
-{ role: "assistant", content: reply, at: nowISO() }
-],
-18
-);
-
-lead.last_message = nowISO();
-
-await upsertLead(lead);
-
-
-// ==================================
-// ENVIAR RESPOSTA
-// ==================================
-
-const parts = reply.split("\n\n");
-
-for (const part of parts) {
-if (part.trim()) {
-await sendWhatsAppText(from, part.trim());
-}
-}
-
-
-// ==================================
-// ALERTA LEAD QUENTE
-// ==================================
-
-if (isHotLead) {
-
-const alert = `🚨 LEAD QUENTE
+      const alert = `🚨 LEAD QUENTE
 
 Cliente: ${lead.name || "não informado"}
 Telefone: ${from}
@@ -408,24 +380,24 @@ Mensagem:
 "${userText}"
 `;
 
-await sendWhatsAppText(
-"5527998331176",
-alert
-);
+      await sendWhatsAppText(
+        "5527998331176",
+        alert
+      );
 
-}
+    }
 
-return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true });
 
-} catch (err) {
+  } catch (err) {
 
-console.error("WEBHOOK ERROR:", err);
+    console.error("WEBHOOK ERROR:", err);
 
-return res.status(200).json({
-ok: false,
-error: err?.message
-});
+    return res.status(200).json({
+      ok: false,
+      error: err?.message
+    });
 
-}
+  }
 
 };

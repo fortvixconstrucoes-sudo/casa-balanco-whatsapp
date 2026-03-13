@@ -6,11 +6,38 @@ const {
   clampHistory,
   normalizeText,
   sendCasaMedia,
-  mergeBuyerDataFromText
+  mergeBuyerDataFromText,
+  buildContractFormText,
+  buildPaymentDataMessage,
+  buildMissingDataMessage
 } = require("./_agent");
 
 const pdf = require("pdf-parse");
 const Tesseract = require("tesseract.js");
+
+// =================================
+// LINKS FIXOS
+// =================================
+const CASA_VIDEO_URL =
+  "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/06_video_apresentacao.mp4";
+
+const CASA_BANNERS = [
+  "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/01_apresentacao_casa.png",
+  "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/02_area_gourmet_piscina.png",
+  "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/03_sala_cozinha.png",
+  "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/04_quartos.png",
+  "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/05_banheiros.png"
+];
+
+const CASA_ADDRESS_TEXT = `📍 A Casa Balanço do Mar fica em:
+
+Rua T17, Quadra 26, Lote 02B
+Bairro Basevi
+Prado – Bahia
+CEP 45980-000`;
+
+const CASA_MAP_TEXT = `Localização no mapa:
+https://www.google.com/maps?q=-17.324118246682865,-39.22221224575318`;
 
 // =================================
 // DOWNLOAD ARQUIVO WHATSAPP
@@ -94,7 +121,7 @@ function extractIncoming(body) {
 }
 
 // =================================
-// EXTRAÇÃO DE DADOS DO CLIENTE
+// EXTRAÇÃO DE DADOS
 // =================================
 function applyManualFieldExtraction(lead, userText) {
   const txt = userText || "";
@@ -104,11 +131,8 @@ function applyManualFieldExtraction(lead, userText) {
   lead.spouse = lead.spouse || {};
   lead.purchase = lead.purchase || {};
 
-  // ===============================
-  // EXTRAÇÕES GERAIS
-  // ===============================
   const email = txt.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
-  if (email && !lead.buyer.email) lead.buyer.email = email[0];
+  if (email) lead.buyer.email = email[0];
 
   const cpf = txt.match(/\b\d{3}\.?\d{3}\.?\d{3}\-?\d{2}\b/);
   if (cpf && !lead.buyer.cpf) lead.buyer.cpf = cpf[0];
@@ -122,13 +146,11 @@ function applyManualFieldExtraction(lead, userText) {
   const rgLabel = txt.match(/\brg[:\s]*([0-9.\-xX]{5,20})/i);
   if (rgLabel && !lead.buyer.rg) lead.buyer.rg = rgLabel[1].trim();
 
-  // captura telefone em texto, se houver
   const phoneMatch = txt.match(/(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?(?:9?\d{4}\-?\d{4})/);
   if (phoneMatch && !lead.buyer.phone) {
     lead.buyer.phone = phoneMatch[0].trim();
   }
 
-  // estado civil
   if (/solteiro|solteira/.test(lower) && !lead.buyer.marital_status) {
     lead.buyer.marital_status = "Solteiro(a)";
   }
@@ -142,15 +164,11 @@ function applyManualFieldExtraction(lead, userText) {
     lead.buyer.marital_status = "Divorciado(a)";
   }
 
-  // pagamento
-  const modeAvista = /a vista|avista/.test(lower);
-  const modeParcelado = /parcelado|parcelar|entrada/.test(lower);
-
-  if (modeAvista) {
+  if (/a vista|avista/.test(lower)) {
     lead.purchase.payment_mode = "avista";
-  } else if (modeParcelado) {
+  } else if (/parcelado|parcelar|entrada/.test(lower)) {
     lead.purchase.payment_mode = "parcelado";
-    if (!lead.purchase.entry_value) lead.purchase.entry_value = 7290;
+    lead.purchase.entry_value = 7290;
 
     if (/36x/.test(lower)) {
       lead.purchase.installments = 36;
@@ -164,14 +182,10 @@ function applyManualFieldExtraction(lead, userText) {
     }
   }
 
-  // fallback de telefone
   if (!lead.buyer.phone) {
     lead.buyer.phone = lead.phone;
   }
 
-  // ===============================
-  // EXTRAÇÃO POR LINHAS
-  // ===============================
   const lines = txt
     .split("\n")
     .map((s) => s.trim())
@@ -229,9 +243,6 @@ function applyManualFieldExtraction(lead, userText) {
     }
   }
 
-  // ===============================
-  // CASO O CLIENTE MANDE SÓ O NOME
-  // ===============================
   if (
     !lead.buyer.full_name &&
     txt &&
@@ -250,55 +261,67 @@ function applyManualFieldExtraction(lead, userText) {
 }
 
 // =================================
-// DETECÇÃO DE INTENÇÕES
+// CHECAR MÍDIA
+// =================================
+async function checkMediaUrl(url) {
+  try {
+    const res = await fetch(url, { method: "HEAD" });
+    return res.ok;
+  } catch (err) {
+    console.error("MEDIA CHECK ERROR:", err?.message || err);
+    return false;
+  }
+}
+
+// =================================
+// DETECÇÃO
 // =================================
 function detectIntent(t) {
   return {
-    video: /video|vídeo|tour/.test(t),
-    photos: /foto|fotos|imagem|imagens/.test(t),
-    address: /endereco|endereço|onde fica|localizacao|localização|mapa/.test(t),
-    price: /preco|preço|valor|quanto custa/.test(t),
-    invest: /investir|retorno|renda|investimento/.test(t),
-    visit: /visitar|visita/.test(t),
-    buy: /quero comprar|quero fechar|vamos fechar|reservar|quero pagar|como faco pra pagar|como faço pra pagar|contrato/.test(t),
-    fullMedia: /me mostra tudo|me envie tudo|apresentacao completa|apresentação completa/.test(t)
+    video: /\b(video|tour)\b/.test(t),
+    photos: /\b(foto|fotos|imagem|imagens)\b/.test(t),
+    address: /\b(endereco|onde fica|localizacao|mapa)\b/.test(t),
+    price: /\b(preco|valor|quanto custa)\b/.test(t),
+    invest: /\b(investir|retorno|renda|investimento)\b/.test(t),
+    visit: /\b(visitar|visita)\b/.test(t),
+    buy: /\b(quero comprar|quero fechar|vamos fechar|reservar|quero pagar|como faco pra pagar|contrato|a vista|avista|parcelado)\b/.test(t),
+    fullMedia: /\b(me mostra tudo|me envie tudo|apresentacao completa)\b/.test(t)
   };
 }
 
 // =================================
-// RESPOSTAS DIRETAS DE MÍDIA
+// FLUXOS DIRETOS
 // =================================
 async function handleDirectMediaIntent({ from, lead, detect }) {
   if (detect.fullMedia) {
-    if (!lead.media_sent) {
-      await sendCasaMedia(from);
-      lead.media_sent = true;
-      lead.sent_photos = true;
-      lead.sent_video = true;
-    } else {
-      await sendWhatsAppText(from, "Claro 😊 Posso te reenviar a apresentação completa da casa.");
-      await sendCasaMedia(from);
-    }
-
+    await sendCasaMedia(from);
+    lead.media_sent = true;
+    lead.sent_photos = true;
+    lead.sent_video = true;
     lead.last_message = nowISO();
     await upsertLead(lead);
     return true;
   }
 
   if (detect.video) {
-    if (!lead.sent_video) {
-      await sendWhatsAppText(from, "Vou te mostrar um vídeo rápido da casa 😊");
-      await sendWhatsAppVideo(
-        from,
-        "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/06_video_apresentacao.mp4"
-      );
+    const ok = await checkMediaUrl(CASA_VIDEO_URL);
+
+    await sendWhatsAppText(from, "Vou te mostrar um vídeo rápido da casa 👇");
+
+    if (ok) {
+      await sendWhatsAppVideo(from, CASA_VIDEO_URL);
       lead.sent_video = true;
     } else {
-      await sendWhatsAppText(from, "Claro 😊 Vou te reenviar o vídeo da casa.");
-      await sendWhatsAppVideo(
+      await sendWhatsAppText(
         from,
-        "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/06_video_apresentacao.mp4"
+        "O vídeo está indisponível no momento, mas posso te enviar agora as imagens e seguir com a apresentação da casa."
       );
+
+      for (const banner of CASA_BANNERS) {
+        await sendWhatsAppImage(from, banner);
+      }
+
+      lead.sent_photos = true;
     }
 
     lead.last_message = nowISO();
@@ -307,17 +330,9 @@ async function handleDirectMediaIntent({ from, lead, detect }) {
   }
 
   if (detect.photos) {
-    const banners = [
-      "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/01_apresentacao_casa.png",
-      "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/02_area_gourmet_piscina.png",
-      "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/03_sala_cozinha.png",
-      "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/04_quartos.png",
-      "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/05_banheiros.png"
-    ];
+    await sendWhatsAppText(from, "Vou te mostrar algumas imagens da casa 👇");
 
-    await sendWhatsAppText(from, !lead.sent_photos ? "Vou te mostrar algumas imagens da casa 👇" : "Claro 😊 Vou te reenviar algumas imagens da casa 👇");
-
-    for (const banner of banners) {
+    for (const banner of CASA_BANNERS) {
       await sendWhatsAppImage(from, banner);
     }
 
@@ -328,23 +343,85 @@ async function handleDirectMediaIntent({ from, lead, detect }) {
   }
 
   if (detect.address) {
-    await sendWhatsAppText(
-      from,
-      `📍 A Casa Balanço do Mar fica em:
-
-Rua T17, Quadra 26, Lote 02B
-Bairro Basevi
-Prado – Bahia
-CEP 45980-000`
-    );
-
-    await sendWhatsAppText(
-      from,
-      `Localização no mapa:
-https://www.google.com/maps?q=-17.324118246682865,-39.22221224575318`
-    );
+    await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
+    await sendWhatsAppText(from, CASA_MAP_TEXT);
 
     lead.sent_map = true;
+    lead.last_message = nowISO();
+    await upsertLead(lead);
+    return true;
+  }
+
+  return false;
+}
+
+// =================================
+// FECHAMENTO DIRETO
+// =================================
+async function handleDirectClosing({ from, lead, t }) {
+  const missingMsg = buildMissingDataMessage(lead);
+
+  if (/a vista|avista/.test(t)) {
+    lead.purchase = lead.purchase || {};
+    lead.purchase.payment_mode = "avista";
+  }
+
+  if (/parcelado|parcelar|entrada/.test(t)) {
+    lead.purchase = lead.purchase || {};
+    lead.purchase.payment_mode = "parcelado";
+    if (!lead.purchase.entry_value) lead.purchase.entry_value = 7290;
+  }
+
+  if (/quero pagar|como faco pra pagar|contrato|quero fechar|quero comprar|reservar|a vista|avista|parcelado/.test(t)) {
+    if (missingMsg) {
+      await sendWhatsAppText(
+        from,
+        `Perfeito! Vamos finalizar sua fração 😊
+
+${missingMsg}`
+      );
+
+      lead.last_message = nowISO();
+      await upsertLead(lead);
+      return true;
+    }
+
+    const formText = buildContractFormText(lead);
+    const paymentText = buildPaymentDataMessage();
+
+    await sendWhatsAppText(from, formText);
+    await sendWhatsAppText(
+      from,
+      "Confira os dados acima. Se estiver tudo certo, me devolva a ficha assinada junto com o comprovante de pagamento para confirmarmos sua fração."
+    );
+    await sendWhatsAppText(from, paymentText);
+
+    lead.contract_sent = true;
+    lead.signed_form_requested = true;
+    lead.payment_requested = true;
+    lead.payment_proof_requested = true;
+    lead.last_message = nowISO();
+    await upsertLead(lead);
+    return true;
+  }
+
+  // se o último dado faltante era e-mail e o cliente enviou agora, finalizar
+  if (lead.buyer?.email && !missingMsg && lead.stage === "fechamento") {
+    const formText = buildContractFormText(lead);
+    const paymentText = buildPaymentDataMessage();
+
+    await sendWhatsAppText(from, "Perfeito! Agora já tenho os dados necessários para finalizar 😊");
+    await sendWhatsAppText(from, formText);
+    await sendWhatsAppText(
+      from,
+      "Confira, assine e me devolva a ficha junto com o comprovante de pagamento para confirmarmos sua fração."
+    );
+    await sendWhatsAppText(from, paymentText);
+
+    lead.contract_sent = true;
+    lead.signed_form_requested = true;
+    lead.payment_requested = true;
+    lead.payment_proof_requested = true;
     lead.last_message = nowISO();
     await upsertLead(lead);
     return true;
@@ -358,12 +435,8 @@ https://www.google.com/maps?q=-17.324118246682865,-39.22221224575318`
 // =================================
 module.exports = async (req, res) => {
   try {
-    // ===============================
-    // VERIFICAÇÃO META
-    // ===============================
     if (req.method === "GET") {
       const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
-
       const mode = req.query["hub.mode"];
       const token = req.query["hub.verify_token"];
       const challenge = req.query["hub.challenge"];
@@ -403,7 +476,7 @@ module.exports = async (req, res) => {
     let userText = text || "";
 
     // ===============================
-    // DOCUMENTO PDF
+    // DOCUMENTO
     // ===============================
     if (type === "document" && documentId) {
       const buffer = await downloadWhatsAppFile(documentId);
@@ -421,7 +494,7 @@ Verifique o que falta na ficha e peça apenas os dados faltantes.`;
     }
 
     // ===============================
-    // IMAGEM / OCR
+    // IMAGEM
     // ===============================
     if (type === "image" && imageId) {
       const buffer = await downloadWhatsAppFile(imageId);
@@ -438,21 +511,15 @@ ${imgText}
 
 Verifique o que falta na ficha e peça apenas os dados faltantes.`;
       } else {
-        userText = "Cliente enviou imagem. Verifique se é documento, comprovante ou imagem comum e conduza a conversa corretamente.";
+        userText = "Cliente enviou imagem. Analise se é documento, comprovante ou imagem comum e conduza corretamente.";
       }
     }
 
-    // ===============================
-    // EXTRAÇÃO MANUAL DO TEXTO
-    // ===============================
     lead = applyManualFieldExtraction(lead, userText);
 
     const t = normalizeText(userText);
     const detect = detectIntent(t);
 
-    // ===============================
-    // SCORE
-    // ===============================
     if (detect.price) lead.score = (lead.score || 0) + 2;
     if (detect.invest) lead.score = (lead.score || 0) + 3;
     if (detect.buy) lead.score = (lead.score || 0) + 6;
@@ -462,18 +529,35 @@ Verifique o que falta na ficha e peça apenas os dados faltantes.`;
     else if (lead.score >= 1) lead.stage = "curioso";
 
     // ===============================
-    // MÍDIA DIRETA
+    // HISTÓRICO USER
+    // ===============================
+    lead.history = clampHistory(
+      [
+        ...(lead.history || []),
+        { role: "user", content: userText, at: nowISO() }
+      ],
+      30
+    );
+
+    lead.last_message = nowISO();
+    lead = await upsertLead(lead);
+
+    // ===============================
+    // FLUXOS DIRETOS
     // ===============================
     const handledMedia = await handleDirectMediaIntent({ from, lead, detect });
     if (handledMedia) {
       return res.status(200).json({ ok: true });
     }
 
+    const handledClosing = await handleDirectClosing({ from, lead, t });
+    if (handledClosing) {
+      return res.status(200).json({ ok: true });
+    }
+
     // ===============================
     // PROPOSTA AUTOMÁTICA
     // ===============================
-    let autoProposalSent = false;
-
     if ((lead.stage === "fechamento" || detect.buy) && !lead.proposal_sent) {
       await sendWhatsAppText(
         from,
@@ -497,34 +581,15 @@ Se fizer sentido para você, eu sigo agora com sua ficha.`
 
       lead.proposal_sent = true;
       lead.last_message = nowISO();
-      autoProposalSent = true;
+      await upsertLead(lead);
+      return res.status(200).json({ ok: true });
     }
-
-    // ===============================
-    // HISTÓRICO
-    // ===============================
-    lead.history = clampHistory(
-      [
-        ...(lead.history || []),
-        { role: "user", content: userText, at: nowISO() }
-      ],
-      30
-    );
-
-    lead.last_message = nowISO();
-    lead = await upsertLead(lead);
 
     // ===============================
     // IA
     // ===============================
-    let reply = await generateReply({ lead, userText });
+    const reply = await generateReply({ lead, userText });
 
-    // evita repetição pesada logo após proposta automática
-    if (autoProposalSent && /vou te apresentar a condição atual da fração/i.test(reply)) {
-      reply = "Perfeito 😊\n\nSe fizer sentido para você, eu sigo agora com sua ficha e peço só os dados que faltarem.";
-    }
-
-    // marca fluxo de fechamento
     if (/ficha preenchida|assine e me devolva/i.test(reply)) {
       lead.contract_sent = true;
       lead.signed_form_requested = true;
@@ -546,9 +611,6 @@ Se fizer sentido para você, eu sigo agora com sua ficha.`
     lead.last_message = nowISO();
     await upsertLead(lead);
 
-    // ===============================
-    // ENVIO RESPOSTA
-    // ===============================
     const parts = reply.split("\n\n");
 
     for (const part of parts) {

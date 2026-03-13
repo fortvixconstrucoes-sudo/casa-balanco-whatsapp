@@ -10,31 +10,8 @@ function detectPurchaseIntent(text){
 
 const t = normalizeText(text)
 
-const triggers = [
+return /\b(comprar|fechar|reservar|pagar|contrato|garantir|a vista|parcelado)\b/.test(t)
 
-"quero comprar",
-"quero fechar",
-"quero reservar",
-"quero pagar",
-"quero contrato",
-"quero garantir",
-"como faço para pagar",
-"como faço para comprar",
-"posso comprar",
-"quero essa fração",
-"quero fechar negócio",
-"a vista",
-"à vista",
-"parcelado",
-"vamos fechar",
-"manda contrato",
-"tenho interesse",
-"quero essa",
-"quero participar"
-
-]
-
-return triggers.some(k => t.includes(k))
 }
 
 async function alertOwner(lead,text){
@@ -97,27 +74,8 @@ function detectMediaInterest(text){
 
 const t = normalizeText(text)
 
-const triggers = [
+return /\b(foto|fotos|imagem|imagens|video|ver a casa|me mostra|mostrar)\b/.test(t)
 
-"foto",
-"fotos",
-"imagem",
-"imagens",
-"ver a casa",
-"me mostra",
-"mostrar",
-"quero ver",
-"tem foto",
-"tem vídeo",
-"video",
-"vídeo",
-"como é a casa",
-"manda fotos",
-"manda foto"
-
-]
-
-return triggers.some(k => t.includes(k))
 }
 
 async function sendCasaMedia(phone){
@@ -1538,19 +1496,12 @@ Normalmente quantas pessoas viajariam com você?`
 }
   
 // cliente pediu fotos
-if(
-t.includes("foto") ||
-t.includes("fotos") ||
-t.includes("imagem") ||
-t.includes("imagens")
-){
+if(detectMediaInterest(userText)){
 return `Claro! 😊
 
-Vou te mostrar algumas fotos da Casa Balanço do Mar.
+Posso te mostrar algumas imagens e um vídeo rápido da casa.
 
-Ela foi pensada para oferecer uma experiência completa de praia com conforto e privacidade.
-
-Você imagina usar mais com a família ou também como investimento?`
+Você imagina usar mais para férias com a família ou também como investimento?`
 }
 return null
 }

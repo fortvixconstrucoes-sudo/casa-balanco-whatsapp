@@ -348,7 +348,7 @@ Cada pessoa compra uma fração da casa.
 
 ENDEREÇO EXATO DA CASA
 
-Rua T17, Quadra 16, Lote 02B
+Rua T17, Quadra 26, Lote 02B
 Bairro Basevi
 Prado – Bahia
 CEP 45980-000

@@ -74,6 +74,72 @@ function clampHistory(history, max = 18) {
   return h.slice(-max);
 }
 
+// =============================
+// MÍDIA DA CASA BALANÇO DO MAR
+// =============================
+
+const casaMedia = {
+
+banners: [
+"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/01_apresentacao_casa.png",
+"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/02_area_gourmet_piscina.png",
+"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/03_sala_cozinha.png",
+"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/04_quartos.png",
+"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/05_banheiros.png"
+],
+
+video:
+"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/06_video_apresentacao.mp4"
+
+}
+
+function detectMediaInterest(text){
+
+const t = normalizeText(text)
+
+const triggers = [
+
+"foto",
+"fotos",
+"imagem",
+"imagens",
+"ver a casa",
+"me mostra",
+"mostrar",
+"quero ver",
+"tem foto",
+"tem vídeo",
+"video",
+"vídeo",
+"como é a casa",
+"manda fotos",
+"manda foto"
+
+]
+
+return triggers.some(k => t.includes(k))
+}
+
+async function sendCasaMedia(phone){
+
+await sendWhatsAppText(
+phone,
+"Vou te mostrar algumas imagens da Casa Balanço do Mar 😊"
+)
+
+for(const banner of casaMedia.banners){
+await sendWhatsAppImage(phone,banner)
+}
+
+await sendWhatsAppText(
+phone,
+"E aqui um vídeo da casa para você sentir melhor a experiência:"
+)
+
+await sendWhatsAppVideo(phone,casaMedia.video)
+
+}
+
 function buildSystemPrompt() {
 return `
 
@@ -1496,6 +1562,14 @@ async function generateReply({ lead, userText }) {
   const stage = lead.stage || "novo"
 
   const t = normalizeText(userText)
+
+  // =========================
+// INTERESSE EM VER A CASA
+// =========================
+
+if(detectMediaInterest(userText)){
+await sendCasaMedia(lead.phone)
+}
 
   // =========================
   // ATUALIZA ESTÁGIO DO FUNIL

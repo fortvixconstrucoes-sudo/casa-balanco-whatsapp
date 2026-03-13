@@ -234,7 +234,7 @@ return res.status(200).json({ok:true})
 
 }
 
-    // ==================================
+// ==================================
 // CLIENTE PEDIU ENDEREÇO
 // ==================================
 
@@ -242,19 +242,28 @@ if(detect.address){
 
 await sendWhatsAppText(
 from,
-`A Casa Balanço do Mar fica em:
+`📍 A Casa Balanço do Mar fica em:
 
-Rua T17, Quadra 26, Lote 02B
-Bairro Basevi
-Prado – Bahia
-CEP 45980-000
-
-A casa fica perto das praias e do centro de Prado 😊`
+Rua T17, Quadra 26, Lote 02B  
+Bairro Basevi  
+Prado – Bahia  
+CEP 45980-000`
 )
 
 await sendWhatsAppText(
 from,
-`Você já conhece Prado ou seria sua primeira vez na região?`
+`Aqui está a localização no mapa:`)
+
+await sendWhatsAppText(
+from,
+`https://www.google.com/maps?q=-17.324118246682865,-39.22221224575318`
+)
+
+await sendWhatsAppText(
+from,
+`A casa fica perto das praias e do centro de Prado 😊
+
+Você já conhece Prado ou seria sua primeira vez na região?`
 )
 
 return res.status(200).json({ok:true})

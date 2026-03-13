@@ -1,3 +1,4 @@
+const { sendWhatsAppImage, sendWhatsAppVideo } = require("./_wa");
 const { getLeadByPhone, upsertLead } = require("./_supabase");
 const { sendWhatsAppText } = require("./_wa");
 const { generateReply, nowISO, clampHistory } = require("./_agent");
@@ -141,6 +142,56 @@ module.exports = async (req, res) => {
     }
 
     let userText = text || "";
+
+    // ==================================
+// LINKS DOS BANNERS
+// ==================================
+
+const banners = [
+"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/01_apresentacao_casa.png",
+"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/02_area_gourmet_piscina.png",
+"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/03_sala_cozinha.png",
+"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/04_quartos.png",
+"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/05_banheiros.png"
+]
+
+const videoCasa =
+"https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/06_video_apresentacao.mp4"
+
+
+// ==================================
+// DETECTAR PEDIDO DE FOTOS
+// ==================================
+
+const t = userText.toLowerCase()
+
+if(
+t.includes("foto") ||
+t.includes("fotos") ||
+t.includes("imagem") ||
+t.includes("imagens") ||
+t.includes("ver a casa") ||
+t.includes("me mostra") ||
+t.includes("quero ver")
+){
+
+await sendWhatsAppText(
+from,
+"Vou te mostrar algumas imagens da Casa Balanço do Mar 😊"
+)
+
+for(const banner of banners){
+await sendWhatsAppImage(from,banner)
+}
+
+await sendWhatsAppText(
+from,
+"E aqui um vídeo da casa para você sentir a experiência:"
+)
+
+await sendWhatsAppVideo(from,videoCasa)
+
+}
 
     // ==================================
     // LER DOCUMENTO PDF

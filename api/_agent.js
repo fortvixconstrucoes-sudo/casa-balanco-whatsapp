@@ -346,6 +346,28 @@ Cada pessoa compra uma fração da casa.
 
 --------------------------------------------------
 
+ENDEREÇO EXATO DA CASA
+
+Rua T17, Quadra 16, Lote 02B
+Bairro Basevi
+Prado – Bahia
+CEP 45980-000
+
+Quando o cliente perguntar:
+
+• endereço
+• localização exata
+• onde fica
+• qual rua
+
+Responda informando o endereço completo acima.
+
+Após informar o endereço, pergunte:
+
+"Você já conhece Prado ou seria sua primeira vez na região?"
+
+--------------------------------------------------
+
 DIREITO DE USO
 
 Cada fração garante:
@@ -1409,6 +1431,21 @@ Seu objetivo é ajudar o cliente a perceber que adquirir uma fração da Casa Ba
 Quando perceber que faz sentido para o cliente, conduza naturalmente para garantir a fração.
 
 ====================================================
+REGRA CRÍTICA
+
+A casa possui capacidade máxima de 6 hóspedes.
+
+Nunca sugira:
+
+• colchão extra
+• acomodar mais pessoas
+• exceder 6 hóspedes
+
+Se o cliente mencionar número maior que 6, responda:
+
+"A casa foi projetada para até 6 hóspedes para manter conforto e qualidade da experiência."
+
+====================================================
 
 `.trim();
 }
@@ -1487,6 +1524,19 @@ Aliás, muita gente que compra a fração faz isso justamente para ter férias g
 Você pensa mais em usar a casa com a família ou também como investimento?`
 }
   
+  if(/^\d+$/.test(userText)){
+
+const n = parseInt(userText)
+
+if(n > 6){
+
+return `A casa foi projetada para até 6 hóspedes para garantir conforto 😊
+
+Quantas pessoas normalmente viajariam com você com mais frequência?`
+
+}
+
+}
 if(t.includes("familia")){
 return `Perfeito 😊
 

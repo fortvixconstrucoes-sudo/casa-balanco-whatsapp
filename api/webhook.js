@@ -1,3 +1,7 @@
+const FormData = require("form-data");
+const pdf = require("pdf-parse");
+const Tesseract = require("tesseract.js");
+
 const { sendWhatsAppImage, sendWhatsAppVideo, sendWhatsAppText } = require("./_wa");
 const { getLeadByPhone, upsertLead } = require("./_supabase");
 const {
@@ -5,15 +9,11 @@ const {
   nowISO,
   clampHistory,
   normalizeText,
-  sendCasaMedia,
-  mergeBuyerDataFromText,
   buildContractFormText,
   buildPaymentDataMessage,
-  buildMissingDataMessage
+  buildMissingDataMessage,
+  mergeBuyerDataFromText
 } = require("./_agent");
-
-const pdf = require("pdf-parse");
-const Tesseract = require("tesseract.js");
 
 // =================================
 // LINKS FIXOS
@@ -38,6 +38,8 @@ CEP 45980-000`;
 
 const CASA_MAP_TEXT = `Localização no mapa:
 https://www.google.com/maps?q=-17.324118246682865,-39.22221224575318`;
+
+const FECHAMENTO_INTRO = `Perfeito! Vamos finalizar sua fração 😊`;
 
 // =================================
 // DOWNLOAD ARQUIVO WHATSAPP
@@ -70,22 +72,66 @@ async function downloadWhatsAppFile(fileId) {
 }
 
 // =================================
-// LER PDF
+// LEITORES
 // =================================
 async function readPDF(buffer) {
   const data = await pdf(buffer);
   return data?.text || "";
 }
 
-// =================================
-// OCR IMAGEM
-// =================================
 async function readImage(buffer) {
   try {
     const result = await Tesseract.recognize(buffer, "por");
     return result?.data?.text || "";
   } catch (err) {
     console.error("OCR ERROR:", err?.message || err);
+    return "";
+  }
+}
+
+function guessAudioFilename(mimeType) {
+  if (!mimeType) return "audio.ogg";
+  if (mimeType.includes("mpeg")) return "audio.mp3";
+  if (mimeType.includes("mp4")) return "audio.m4a";
+  if (mimeType.includes("wav")) return "audio.wav";
+  return "audio.ogg";
+}
+
+async function transcribeAudio(buffer, mimeType = "audio/ogg") {
+  try {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      console.error("OPENAI_API_KEY ausente para transcrição de áudio.");
+      return "";
+    }
+
+    const form = new FormData();
+    form.append("file", buffer, {
+      filename: guessAudioFilename(mimeType),
+      contentType: mimeType
+    });
+    form.append("model", "whisper-1");
+    form.append("language", "pt");
+
+    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        ...form.getHeaders()
+      },
+      body: form
+    });
+
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      console.error("AUDIO TRANSCRIPTION ERROR:", json);
+      return "";
+    }
+
+    return (json?.text || "").trim();
+  } catch (err) {
+    console.error("AUDIO TRANSCRIPTION EXCEPTION:", err?.message || err);
     return "";
   }
 }
@@ -107,6 +153,8 @@ function extractIncoming(body) {
 
   const documentId = msg?.document?.id;
   const imageId = msg?.image?.id;
+  const audioId = msg?.audio?.id;
+  const audioMimeType = msg?.audio?.mime_type || "";
 
   const profileName = contact?.profile?.name;
 
@@ -116,6 +164,8 @@ function extractIncoming(body) {
     text,
     documentId,
     imageId,
+    audioId,
+    audioMimeType,
     profileName
   };
 }
@@ -184,6 +234,16 @@ function applyManualFieldExtraction(lead, userText) {
 
   if (!lead.buyer.phone) {
     lead.buyer.phone = lead.phone;
+  }
+
+  // Captura mais livre de endereço em PDFs/contas
+  if (!lead.buyer.street) {
+    const addressLine = txt.match(
+      /\b(?:rua|avenida|av\.?|travessa|rodovia|estrada|alameda|loteamento|praça)\b[^\n]{8,120}/i
+    );
+    if (addressLine) {
+      lead.buyer.street = addressLine[0].trim();
+    }
   }
 
   const lines = txt
@@ -261,66 +321,81 @@ function applyManualFieldExtraction(lead, userText) {
 }
 
 // =================================
-// CHECAR MÍDIA
-// =================================
-async function checkMediaUrl(url) {
-  try {
-    const res = await fetch(url, { method: "HEAD" });
-    return res.ok;
-  } catch (err) {
-    console.error("MEDIA CHECK ERROR:", err?.message || err);
-    return false;
-  }
-}
-
-// =================================
 // DETECÇÃO
 // =================================
+function includesAny(t, arr) {
+  return arr.some((x) => t.includes(x));
+}
+
 function detectIntent(t) {
   return {
-    video: /\b(video|tour)\b/.test(t),
-    photos: /\b(foto|fotos|imagem|imagens)\b/.test(t),
-    address: /\b(endereco|onde fica|localizacao|mapa)\b/.test(t),
-    price: /\b(preco|valor|quanto custa)\b/.test(t),
-    invest: /\b(investir|retorno|renda|investimento)\b/.test(t),
-    visit: /\b(visitar|visita)\b/.test(t),
-    buy: /\b(quero comprar|quero fechar|vamos fechar|reservar|quero pagar|como faco pra pagar|contrato|a vista|avista|parcelado)\b/.test(t),
-    fullMedia: /\b(me mostra tudo|me envie tudo|apresentacao completa)\b/.test(t)
+    video: includesAny(t, ["video", "tour"]),
+    photos: includesAny(t, ["foto", "fotos", "imagem", "imagens"]),
+    address: includesAny(t, ["endereco", "onde fica", "localizacao", "mapa"]),
+    price: includesAny(t, ["preco", "valor", "quanto custa"]),
+    invest: includesAny(t, ["investir", "retorno", "renda", "investimento"]),
+    visit: includesAny(t, ["visitar", "visita"]),
+    buy: includesAny(t, [
+      "quero comprar",
+      "quero fechar",
+      "vamos fechar",
+      "reservar",
+      "quero pagar",
+      "como faco pra pagar",
+      "contrato",
+      "a vista",
+      "avista",
+      "parcelado"
+    ]),
+    fullMedia: includesAny(t, ["me mostra tudo", "me envie tudo", "apresentacao completa"])
   };
 }
 
 // =================================
-// FLUXOS DIRETOS
+// MÍDIA DIRETA
 // =================================
+async function sendAllBanners(to) {
+  for (const banner of CASA_BANNERS) {
+    await sendWhatsAppImage(to, banner);
+  }
+}
+
 async function handleDirectMediaIntent({ from, lead, detect }) {
   if (detect.fullMedia) {
-    await sendCasaMedia(from);
+    await sendWhatsAppText(from, "Vou te enviar a apresentação completa da casa 👇");
+    await sendAllBanners(from);
+
+    try {
+      await sendWhatsAppVideo(from, CASA_VIDEO_URL);
+      lead.sent_video = true;
+    } catch (err) {
+      console.error("FULL MEDIA VIDEO FAIL:", err?.message || err);
+      await sendWhatsAppText(
+        from,
+        "O vídeo não carregou agora, mas já te enviei as imagens para você conhecer a casa."
+      );
+    }
+
     lead.media_sent = true;
     lead.sent_photos = true;
-    lead.sent_video = true;
     lead.last_message = nowISO();
     await upsertLead(lead);
     return true;
   }
 
   if (detect.video) {
-    const ok = await checkMediaUrl(CASA_VIDEO_URL);
-
     await sendWhatsAppText(from, "Vou te mostrar um vídeo rápido da casa 👇");
 
-    if (ok) {
+    try {
       await sendWhatsAppVideo(from, CASA_VIDEO_URL);
       lead.sent_video = true;
-    } else {
+    } catch (err) {
+      console.error("VIDEO SEND FAIL:", err?.message || err);
       await sendWhatsAppText(
         from,
-        "O vídeo está indisponível no momento, mas posso te enviar agora as imagens e seguir com a apresentação da casa."
+        "O vídeo não carregou agora. Vou te enviar as imagens da casa para não te deixar esperando."
       );
-
-      for (const banner of CASA_BANNERS) {
-        await sendWhatsAppImage(from, banner);
-      }
-
+      await sendAllBanners(from);
       lead.sent_photos = true;
     }
 
@@ -331,10 +406,7 @@ async function handleDirectMediaIntent({ from, lead, detect }) {
 
   if (detect.photos) {
     await sendWhatsAppText(from, "Vou te mostrar algumas imagens da casa 👇");
-
-    for (const banner of CASA_BANNERS) {
-      await sendWhatsAppImage(from, banner);
-    }
+    await sendAllBanners(from);
 
     lead.sent_photos = true;
     lead.last_message = nowISO();
@@ -358,9 +430,27 @@ async function handleDirectMediaIntent({ from, lead, detect }) {
 // =================================
 // FECHAMENTO DIRETO
 // =================================
-async function handleDirectClosing({ from, lead, t }) {
-  const missingMsg = buildMissingDataMessage(lead);
+async function finalizeSaleFlow(from, lead) {
+  const formText = buildContractFormText(lead);
+  const paymentText = buildPaymentDataMessage();
 
+  await sendWhatsAppText(from, "Perfeito! Agora já tenho os dados necessários para finalizar 😊");
+  await sendWhatsAppText(from, formText);
+  await sendWhatsAppText(
+    from,
+    "Confira os dados acima. Se estiver tudo certo, me devolva a ficha assinada junto com o comprovante de pagamento para confirmarmos sua fração."
+  );
+  await sendWhatsAppText(from, paymentText);
+
+  lead.contract_sent = true;
+  lead.signed_form_requested = true;
+  lead.payment_requested = true;
+  lead.payment_proof_requested = true;
+  lead.last_message = nowISO();
+  await upsertLead(lead);
+}
+
+async function handleDirectClosing({ from, lead, t }) {
   if (/a vista|avista/.test(t)) {
     lead.purchase = lead.purchase || {};
     lead.purchase.payment_mode = "avista";
@@ -372,62 +462,51 @@ async function handleDirectClosing({ from, lead, t }) {
     if (!lead.purchase.entry_value) lead.purchase.entry_value = 7290;
   }
 
-  if (/quero pagar|como faco pra pagar|contrato|quero fechar|quero comprar|reservar|a vista|avista|parcelado/.test(t)) {
-    if (missingMsg) {
-      await sendWhatsAppText(
-        from,
-        `Perfeito! Vamos finalizar sua fração 😊
+  const missingMsg = buildMissingDataMessage(lead);
 
-${missingMsg}`
-      );
+  if (
+    /quero pagar|como faco pra pagar|contrato|quero fechar|quero comprar|reservar|a vista|avista|parcelado/.test(t)
+  ) {
+    if (missingMsg) {
+      await sendWhatsAppText(from, `${FECHAMENTO_INTRO}
+
+${missingMsg}`);
 
       lead.last_message = nowISO();
       await upsertLead(lead);
       return true;
     }
 
-    const formText = buildContractFormText(lead);
-    const paymentText = buildPaymentDataMessage();
-
-    await sendWhatsAppText(from, formText);
-    await sendWhatsAppText(
-      from,
-      "Confira os dados acima. Se estiver tudo certo, me devolva a ficha assinada junto com o comprovante de pagamento para confirmarmos sua fração."
-    );
-    await sendWhatsAppText(from, paymentText);
-
-    lead.contract_sent = true;
-    lead.signed_form_requested = true;
-    lead.payment_requested = true;
-    lead.payment_proof_requested = true;
-    lead.last_message = nowISO();
-    await upsertLead(lead);
-    return true;
-  }
-
-  // se o último dado faltante era e-mail e o cliente enviou agora, finalizar
-  if (lead.buyer?.email && !missingMsg && lead.stage === "fechamento") {
-    const formText = buildContractFormText(lead);
-    const paymentText = buildPaymentDataMessage();
-
-    await sendWhatsAppText(from, "Perfeito! Agora já tenho os dados necessários para finalizar 😊");
-    await sendWhatsAppText(from, formText);
-    await sendWhatsAppText(
-      from,
-      "Confira, assine e me devolva a ficha junto com o comprovante de pagamento para confirmarmos sua fração."
-    );
-    await sendWhatsAppText(from, paymentText);
-
-    lead.contract_sent = true;
-    lead.signed_form_requested = true;
-    lead.payment_requested = true;
-    lead.payment_proof_requested = true;
-    lead.last_message = nowISO();
-    await upsertLead(lead);
+    await finalizeSaleFlow(from, lead);
     return true;
   }
 
   return false;
+}
+
+async function handleDocumentDrivenProgress({ from, lead, sourceLabel }) {
+  const missingMsg = buildMissingDataMessage(lead);
+
+  if (missingMsg) {
+    await sendWhatsAppText(
+      from,
+      `Perfeito! Recebi seu ${sourceLabel} e atualizei os dados 😊
+
+${missingMsg}`
+    );
+
+    lead.last_message = nowISO();
+    await upsertLead(lead);
+    return true;
+  }
+
+  await sendWhatsAppText(
+    from,
+    `Perfeito! Recebi seu ${sourceLabel} e agora já temos os dados necessários para concluir 😊`
+  );
+
+  await finalizeSaleFlow(from, lead);
+  return true;
 }
 
 // =================================
@@ -435,6 +514,9 @@ ${missingMsg}`
 // =================================
 module.exports = async (req, res) => {
   try {
+    // ===============================
+    // VERIFICAÇÃO META
+    // ===============================
     if (req.method === "GET") {
       const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
       const mode = req.query["hub.mode"];
@@ -453,7 +535,16 @@ module.exports = async (req, res) => {
     }
 
     const body = req.body || {};
-    const { from, type, text, documentId, imageId, profileName } = extractIncoming(body);
+    const {
+      from,
+      type,
+      text,
+      documentId,
+      imageId,
+      audioId,
+      audioMimeType,
+      profileName
+    } = extractIncoming(body);
 
     if (!from) {
       return res.status(200).json({ ok: true });
@@ -474,9 +565,10 @@ module.exports = async (req, res) => {
     }
 
     let userText = text || "";
+    let sourceLabel = "";
 
     // ===============================
-    // DOCUMENTO
+    // DOCUMENTO PDF
     // ===============================
     if (type === "document" && documentId) {
       const buffer = await downloadWhatsAppFile(documentId);
@@ -485,12 +577,8 @@ module.exports = async (req, res) => {
       lead = mergeBuyerDataFromText(lead, pdfText);
       lead = applyManualFieldExtraction(lead, pdfText);
 
-      userText = `Cliente enviou documento com dados para cadastro.
-
-Dados identificados:
-${pdfText}
-
-Verifique o que falta na ficha e peça apenas os dados faltantes.`;
+      userText = pdfText || "Cliente enviou documento PDF para cadastro.";
+      sourceLabel = "documento";
     }
 
     // ===============================
@@ -503,18 +591,34 @@ Verifique o que falta na ficha e peça apenas os dados faltantes.`;
       if (imgText) {
         lead = mergeBuyerDataFromText(lead, imgText);
         lead = applyManualFieldExtraction(lead, imgText);
-
-        userText = `Cliente enviou imagem com dados pessoais.
-
-Dados identificados:
-${imgText}
-
-Verifique o que falta na ficha e peça apenas os dados faltantes.`;
+        userText = imgText;
       } else {
-        userText = "Cliente enviou imagem. Analise se é documento, comprovante ou imagem comum e conduza corretamente.";
+        userText = "Cliente enviou imagem.";
       }
+
+      sourceLabel = "imagem";
     }
 
+    // ===============================
+    // ÁUDIO
+    // ===============================
+    if (type === "audio" && audioId) {
+      const buffer = await downloadWhatsAppFile(audioId);
+      const transcript = await transcribeAudio(buffer, audioMimeType);
+
+      if (transcript) {
+        lead = applyManualFieldExtraction(lead, transcript);
+        userText = transcript;
+      } else {
+        userText = "Cliente enviou áudio, mas não foi possível transcrever automaticamente.";
+      }
+
+      sourceLabel = "áudio";
+    }
+
+    // ===============================
+    // EXTRAÇÃO GERAL
+    // ===============================
     lead = applyManualFieldExtraction(lead, userText);
 
     const t = normalizeText(userText);
@@ -534,7 +638,11 @@ Verifique o que falta na ficha e peça apenas os dados faltantes.`;
     lead.history = clampHistory(
       [
         ...(lead.history || []),
-        { role: "user", content: userText, at: nowISO() }
+        {
+          role: "user",
+          content: sourceLabel ? `[${sourceLabel}] ${userText}` : userText,
+          at: nowISO()
+        }
       ],
       30
     );
@@ -543,13 +651,31 @@ Verifique o que falta na ficha e peça apenas os dados faltantes.`;
     lead = await upsertLead(lead);
 
     // ===============================
-    // FLUXOS DIRETOS
+    // FLUXO DIRETO DE DOCUMENTO / IMAGEM / ÁUDIO
+    // ===============================
+    if (sourceLabel) {
+      const handledDocProgress = await handleDocumentDrivenProgress({
+        from,
+        lead,
+        sourceLabel
+      });
+
+      if (handledDocProgress) {
+        return res.status(200).json({ ok: true });
+      }
+    }
+
+    // ===============================
+    // FLUXOS DIRETOS DE MÍDIA/ENDEREÇO
     // ===============================
     const handledMedia = await handleDirectMediaIntent({ from, lead, detect });
     if (handledMedia) {
       return res.status(200).json({ ok: true });
     }
 
+    // ===============================
+    // FLUXO DIRETO DE FECHAMENTO
+    // ===============================
     const handledClosing = await handleDirectClosing({ from, lead, t });
     if (handledClosing) {
       return res.status(200).json({ ok: true });
@@ -586,7 +712,7 @@ Se fizer sentido para você, eu sigo agora com sua ficha.`
     }
 
     // ===============================
-    // IA
+    // IA CONSULTIVA
     // ===============================
     const reply = await generateReply({ lead, userText });
 
@@ -629,3 +755,4 @@ Se fizer sentido para você, eu sigo agora com sua ficha.`
     });
   }
 };
+

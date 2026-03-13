@@ -341,7 +341,7 @@ function detectIntent(t) {
   return {
     video:
       /(^|\b)(video|tour)(\b|$)/.test(tx) ||
-      tx.includes("tem video") ||
+      tx.includes("tem vídeo") ||
       tx.includes("tem um video"),
 
     photos:
@@ -440,25 +440,25 @@ async function handleDirectMediaIntent({ from, lead, detect }) {
   }
 
   if (detect.video) {
-    await sendWhatsAppText(from, "Vou te mostrar um vídeo rápido da casa 👇");
+  await sendWhatsAppText(from, "Vou te mostrar um vídeo rápido da casa 👇");
 
-    try {
-      await sendWhatsAppVideo(from, CASA_VIDEO_URL);
-      lead.sent_video = true;
-    } catch (err) {
-      console.error("VIDEO SEND FAIL:", err?.message || err);
-      await sendWhatsAppText(
-        from,
-        "O vídeo não carregou agora. Vou te enviar as imagens da casa para não te deixar esperando."
-      );
-      await sendAllBanners(from);
-      lead.sent_photos = true;
-    }
-
-    lead.last_message = nowISO();
-    await upsertLead(lead);
-    return true;
+  try {
+    await sendWhatsAppVideo(from, CASA_VIDEO_URL);
+    lead.sent_video = true;
+  } catch (err) {
+    console.error("VIDEO SEND FAIL:", err?.message || err);
+    await sendWhatsAppText(
+      from,
+      "O vídeo não carregou agora. Vou te enviar as imagens da casa para não te deixar esperando."
+    );
+    await sendAllBanners(from);
+    lead.sent_photos = true;
   }
+
+  lead.last_message = nowISO();
+  await upsertLead(lead);
+  return true;
+}
 
   if (detect.photos) {
     await sendWhatsAppText(from, "Vou te mostrar algumas imagens da casa 👇");

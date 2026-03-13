@@ -36,7 +36,7 @@ for(const lead of leads){
 
 if(!lead.phone) continue
 
-const last = new Date(lead.last_interaction)
+const last = new Date(lead.last_message)
 const diff = (now - last) / 1000 / 60
 
 let msg = null

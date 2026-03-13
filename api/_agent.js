@@ -62,6 +62,14 @@ return /\b(comprar|fechar|reservar|pagar|contrato|garantir|a vista|parcelado)\b/
 
 }
 
+function detectDocument(text){
+
+const t = normalizeText(text)
+
+return /documento|rg|cpf|cnh|comprovante/.test(t)
+
+}
+
 function buildFollowUp(lead){
 
 const stage = lead.stage
@@ -580,10 +588,10 @@ Entre em modo fechador.
 
 Explique o processo:
 
-1 reserva da fração  
-2 envio do contrato  
-3 assinatura  
-4 pagamento  
+1 reserva da fração
+2 envio da ficha de reserva para assinatura
+3 pagamento do sinal ou pagamento à vista
+4 envio do contrato definitivo
 
 Depois solicite:
 
@@ -592,6 +600,20 @@ Depois solicite:
 • RG  
 • comprovante de residência  
 • e-mail  
+
+--------------------------------------------------
+Após receber os documentos do cliente:
+
+1 confirme que recebeu os dados
+2 diga que irá gerar a ficha de reserva
+3 envie a ficha de reserva para assinatura
+4 solicite o comprovante de pagamento
+
+Se parcelado:
+solicite comprovante do sinal de R$ 7.290
+
+Se à vista:
+solicite comprovante do pagamento de R$ 59.890
 
 --------------------------------------------------
 
@@ -805,6 +827,16 @@ if(detectMediaInterest(userText) && !lead.mediaSent){
 await sendCasaMedia(lead.phone)
 
 lead.mediaSent = true
+
+}
+
+  if(detectDocument(userText)){
+
+return `Perfeito! Recebi seus documentos 😊
+
+Vou organizar as informações para gerar a ficha de reserva da sua fração.
+
+Assim que você assinar, envio os dados para pagamento.`
 
 }
 

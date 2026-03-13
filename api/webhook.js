@@ -160,18 +160,82 @@ const videoCasa =
 
 const t = userText.toLowerCase()
 
-const wantsMedia =
+const t = userText.toLowerCase()
+
+// ==================================
+// DETECTAR PEDIDO DE FOTOS
+// ==================================
+
+const wantsPhotos =
 t.includes("foto") ||
 t.includes("fotos") ||
 t.includes("imagem") ||
 t.includes("imagens") ||
+t.includes("ver fotos") ||
+t.includes("tem fotos")
+
+// ==================================
+// DETECTAR PEDIDO DE VIDEO
+// ==================================
+
+const wantsVideo =
 t.includes("video") ||
 t.includes("vídeo") ||
-t.includes("ver a casa") ||
-t.includes("me mostra") ||
-t.includes("quero ver")
+t.includes("tem video") ||
+t.includes("tem vídeo")
 
-if(wantsMedia){
+// ==================================
+// CLIENTE PEDIU VIDEO
+// ==================================
+
+if(wantsVideo){
+
+await sendWhatsAppText(
+from,
+"Claro 😊 Vou te mostrar um vídeo rápido da Casa Balanço do Mar."
+)
+
+await sendWhatsAppVideo(from,videoCasa)
+
+await sendWhatsAppText(
+from,
+"Essa casa comporta até 6 pessoas. Você imagina usar mais para férias com a família ou também como investimento?"
+)
+
+return res.status(200).json({ ok:true })
+
+}
+
+// ==================================
+// CLIENTE PEDIU FOTOS
+// ==================================
+
+if(wantsPhotos){
+
+await sendWhatsAppText(
+from,
+"Perfeito 😊 Vou te mostrar algumas imagens da Casa Balanço do Mar."
+)
+
+for(const banner of banners){
+await sendWhatsAppImage(from,banner)
+}
+
+await sendWhatsAppText(
+from,
+"E aqui um vídeo rápido da casa para você sentir a experiência."
+)
+
+await sendWhatsAppVideo(from,videoCasa)
+
+await sendWhatsAppText(
+from,
+"Imagine passar uma semana em Prado com sua família em uma casa completa como essa. Você imagina usar mais para férias ou também como investimento?"
+)
+
+return res.status(200).json({ ok:true })
+
+}
 
 await sendWhatsAppText(
 from,

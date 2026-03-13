@@ -158,26 +158,24 @@ const banners = [
 const videoCasa =
 "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/06_video_apresentacao.mp4"
 
-
-// ==================================
-// DETECTAR PEDIDO DE FOTOS
-// ==================================
-
 const t = userText.toLowerCase()
 
-if(
+const wantsMedia =
 t.includes("foto") ||
 t.includes("fotos") ||
 t.includes("imagem") ||
 t.includes("imagens") ||
+t.includes("video") ||
+t.includes("vídeo") ||
 t.includes("ver a casa") ||
 t.includes("me mostra") ||
 t.includes("quero ver")
-){
+
+if(wantsMedia){
 
 await sendWhatsAppText(
 from,
-"Vou te mostrar algumas imagens da Casa Balanço do Mar 😊"
+"Perfeito 😊 Vou te mostrar algumas imagens da Casa Balanço do Mar."
 )
 
 for(const banner of banners){
@@ -186,10 +184,17 @@ await sendWhatsAppImage(from,banner)
 
 await sendWhatsAppText(
 from,
-"E aqui um vídeo da casa para você sentir a experiência:"
+"E aqui um vídeo rápido da casa para você sentir a experiência."
 )
 
 await sendWhatsAppVideo(from,videoCasa)
+
+await sendWhatsAppText(
+from,
+"Imagine passar uma semana em Prado com sua família em uma casa completa como essa. Você imagina usar mais para férias ou também como investimento?"
+)
+
+return res.status(200).json({ ok:true })
 
 }
 

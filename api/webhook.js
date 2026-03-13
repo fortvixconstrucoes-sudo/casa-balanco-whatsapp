@@ -175,73 +175,62 @@ module.exports = async (req, res) => {
     // DETECTORES INTELIGENTES
     // ==================================
 
-    const detect = {
+   const detect = {
 
-      video: /\b(video|tour|filmagem)\b/.test(t),
+video:/\b(video|tour|filmagem)\b/.test(t),
 
-      photos: /\b(foto|fotos|imagem|imagens)\b/.test(t),
+photos:/\b(foto|fotos|imagem|imagens)\b/.test(t),
 
-      media: /\b(ver|mostrar|mostra|me mostra|quero ver|tem foto|tem video)\b/.test(t),
+media:/\b(ver|mostrar|mostra|me mostra|quero ver|tem foto|tem video)\b/.test(t),
 
-      interest: /\b(interesse|tenho interesse|quero saber|quero entender|como funciona)\b/.test(t),
+interest:/\b(interesse|tenho interesse|quero saber|quero entender|como funciona)\b/.test(t),
 
-      hotLead: /\b(vou fechar|quero comprar|quero fechar|quero reservar|quero pagar|manda contrato|a vista|parcelado|vamos fechar)\b/.test(t)
+hotLead:/\b(comprar|fechar|reservar|pagar|contrato|a vista|parcelado)\b/.test(t)
 
-    };
-
+}
 
     // ==================================
     // CLIENTE PEDIU VIDEO
     // ==================================
 
-    if (detect.video) {
+ if(detect.video){
 
-      await sendWhatsAppText(
-        from,
-        "Vou te mostrar um vídeo rápido da Casa Balanço do Mar 👇"
-      );
+await sendWhatsAppText(
+from,
+"Vou te mostrar um vídeo rápido da casa 👇"
+)
 
-      await sendWhatsAppVideo(from, videoCasa);
+await sendWhatsAppVideo(from,videoCasa)
 
-      await sendWhatsAppText(
-        from,
-        "Essa casa comporta até 6 pessoas. Você imagina usar mais para férias ou também como investimento?"
-      );
+await sendWhatsAppText(
+from,
+"Você imagina usar mais para férias com a família ou também como investimento?"
+)
 
-      return res.status(200).json({ ok: true });
-    }
+return res.status(200).json({ok:true})
 
+}
 
     // ==================================
     // CLIENTE PEDIU FOTOS
     // ==================================
 
-    if (detect.photos || detect.media) {
+  if(detect.photos || detect.media){
 
-      await sendWhatsAppText(
-        from,
-        "Vou te mostrar algumas imagens da Casa Balanço do Mar 👇"
-      );
+await sendWhatsAppText(
+from,
+"Vou te mostrar algumas imagens da Casa Balanço do Mar 👇"
+)
 
-      for (const banner of banners) {
-        await sendWhatsAppImage(from, banner);
-      }
+for(const banner of banners){
+await sendWhatsAppImage(from,banner)
+}
 
-      await sendWhatsAppText(
-        from,
-        "E aqui um vídeo rápido da casa para você sentir melhor o espaço 👇"
-      );
+await sendWhatsAppVideo(from,videoCasa)
 
-      await sendWhatsAppVideo(from, videoCasa);
+return res.status(200).json({ok:true})
 
-      await sendWhatsAppText(
-        from,
-        "Imagine passar uma semana em Prado com sua família em uma casa completa como essa. Você pensaria mais em férias ou investimento?"
-      );
-
-      return res.status(200).json({ ok: true });
-    }
-
+}
 
     // ==================================
     // LER PDF

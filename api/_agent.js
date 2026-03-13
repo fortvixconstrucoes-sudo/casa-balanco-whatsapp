@@ -57,14 +57,6 @@ function normalizeText(s) {
 function detectPurchaseIntent(text){
 
 const t = normalizeText(text)
-  
-  const detectedStage = detectStage(userText,lead)
-
-if(
-stages[detectedStage] > stages[lead.stage || "novo"]
-){
-lead.stage = detectedStage
-}
 
 return /\b(comprar|fechar|reservar|pagar|contrato|garantir|a vista|parcelado)\b/.test(t)
 
@@ -782,6 +774,18 @@ async function generateReply({ lead, userText }) {
   const stage = lead.stage || "novo"
 
   const t = normalizeText(userText)
+
+  // =========================
+// DETECTA ESTÁGIO AUTOMÁTICO
+// =========================
+
+const detectedStage = detectStage(userText,lead)
+
+if(
+stages[detectedStage] > stages[lead.stage || "novo"]
+){
+lead.stage = detectedStage
+}
   
 // =========================
 // COMPORTAMENTO HUMANO
@@ -796,8 +800,12 @@ content:"Comporte-se como um consultor humano especialista em multipropriedade. 
 // INTERESSE EM VER A CASA
 // =========================
 
-if(detectMediaInterest(userText)){
+if(detectMediaInterest(userText) && !lead.mediaSent){
+
 await sendCasaMedia(lead.phone)
+
+lead.mediaSent = true
+
 }
 
   // =========================

@@ -164,10 +164,7 @@ const t = userText.toLowerCase();
 // ==================================
 
 const wantsVideo =
-t.includes("video") ||
-t.includes("vídeo") ||
-t.includes("tem video") ||
-t.includes("tem vídeo");
+/video|vídeo/.test(t)
 
 
 // ==================================

@@ -387,7 +387,13 @@ if(type==="document" && documentId){
 const buffer=await downloadWhatsAppFile(documentId)
 const pdfText=await readPDF(buffer)
 
-userText="Cliente enviou documento:\n\n"+pdfText
+userText=`Cliente enviou documento para cadastro da fração.
+
+Dados encontrados no documento:
+
+${pdfText}
+
+Verifique quais dados já foram enviados e peça apenas os que faltam.`
 
 }
 
@@ -396,7 +402,13 @@ if(type==="image" && imageId){
 const buffer=await downloadWhatsAppFile(imageId)
 const imgText=await readImage(buffer)
 
-userText="Cliente enviou imagem com dados:\n\n"+imgText
+userText=`Cliente enviou imagem com dados pessoais.
+
+Dados encontrados:
+
+${imgText}
+
+Verifique quais informações já foram enviadas e peça apenas os dados faltantes.`
 
 }
 

@@ -42,7 +42,7 @@ https://www.google.com/maps?q=-17.324118246682865,-39.22221224575318`;
 const FECHAMENTO_INTRO = `Perfeito! Vamos finalizar sua fração 😊`;
 
 // =================================
-// DOWNLOAD ARQUIVO WHATSAPP
+// DOWNLOAD DE ARQUIVO DO WHATSAPP
 // =================================
 async function downloadWhatsAppFile(fileId) {
   const meta = await fetch(`https://graph.facebook.com/v19.0/${fileId}`, {
@@ -72,13 +72,21 @@ async function downloadWhatsAppFile(fileId) {
 }
 
 // =================================
-// LEITORES
+// LEITURA DE PDF
 // =================================
 async function readPDF(buffer) {
-  const data = await pdf(buffer);
-  return data?.text || "";
+  try {
+    const data = await pdf(buffer);
+    return data?.text || "";
+  } catch (err) {
+    console.error("PDF READ ERROR:", err?.message || err);
+    return "";
+  }
 }
 
+// =================================
+// OCR DE IMAGEM
+// =================================
 async function readImage(buffer) {
   try {
     const result = await Tesseract.recognize(buffer, "por");
@@ -89,66 +97,22 @@ async function readImage(buffer) {
   }
 }
 
-async function transcribeAudio(buffer, mimeType = "audio/ogg") {
-  try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      console.error("OPENAI_API_KEY não configurada.");
-      return "";
-    }
-
-    const FormData = require("form-data");
-
-    const form = new FormData();
-    form.append("file", buffer, {
-      filename: mimeType.includes("mpeg")
-        ? "audio.mp3"
-        : mimeType.includes("mp4")
-        ? "audio.m4a"
-        : mimeType.includes("wav")
-        ? "audio.wav"
-        : "audio.ogg",
-      contentType: mimeType
-    });
-
-    form.append("model", "gpt-4o-transcribe");
-    form.append("response_format", "text");
-
-    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        ...form.getHeaders()
-      },
-      body: form
-    });
-
-    const json = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      console.error("Erro ao transcrever áudio:", json);
-      return "";
-    }
-
-    return (json?.text || "").trim();
-  } catch (err) {
-    console.error("Exceção ao transcrever áudio:", err?.message || err);
-    return "";
-  }
-}
-
-
+// =================================
+// TRANSCRIÇÃO DE ÁUDIO
+// =================================
 function guessAudioFilename(mimeType) {
   if (!mimeType) return "audio.ogg";
   if (mimeType.includes("mpeg")) return "audio.mp3";
   if (mimeType.includes("mp4")) return "audio.m4a";
   if (mimeType.includes("wav")) return "audio.wav";
+  if (mimeType.includes("ogg")) return "audio.ogg";
   return "audio.ogg";
 }
 
 async function transcribeAudio(buffer, mimeType = "audio/ogg") {
   try {
     const apiKey = process.env.OPENAI_API_KEY;
+
     if (!apiKey) {
       console.error("OPENAI_API_KEY ausente para transcrição de áudio.");
       return "";
@@ -186,7 +150,7 @@ async function transcribeAudio(buffer, mimeType = "audio/ogg") {
 }
 
 // =================================
-// EXTRAIR MENSAGEM
+// EXTRAIR MENSAGEM RECEBIDA
 // =================================
 function extractIncoming(body) {
   const entry = body?.entry?.[0];
@@ -202,7 +166,6 @@ function extractIncoming(body) {
 
   const documentId = msg?.document?.id;
   const imageId = msg?.image?.id;
-
   const audioId = msg?.audio?.id;
   const audioMimeType = msg?.audio?.mime_type || "audio/ogg";
 
@@ -220,9 +183,8 @@ function extractIncoming(body) {
   };
 }
 
-
 // =================================
-// EXTRAÇÃO DE DADOS
+// EXTRAÇÃO MANUAL DE DADOS
 // =================================
 function applyManualFieldExtraction(lead, userText) {
   const txt = userText || "";
@@ -232,26 +194,33 @@ function applyManualFieldExtraction(lead, userText) {
   lead.spouse = lead.spouse || {};
   lead.purchase = lead.purchase || {};
 
+  // e-mail
   const email = txt.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
   if (email) lead.buyer.email = email[0];
 
+  // cpf
   const cpf = txt.match(/\b\d{3}\.?\d{3}\.?\d{3}\-?\d{2}\b/);
   if (cpf && !lead.buyer.cpf) lead.buyer.cpf = cpf[0];
 
+  // cep
   const cep = txt.match(/\b\d{5}\-?\d{3}\b/);
   if (cep && !lead.buyer.cep) lead.buyer.cep = cep[0];
 
+  // nascimento
   const birth = txt.match(/\b\d{2}\/\d{2}\/\d{4}\b/);
   if (birth && !lead.buyer.birth_date) lead.buyer.birth_date = birth[0];
 
+  // rg
   const rgLabel = txt.match(/\brg[:\s]*([0-9.\-xX]{5,20})/i);
   if (rgLabel && !lead.buyer.rg) lead.buyer.rg = rgLabel[1].trim();
 
+  // telefone
   const phoneMatch = txt.match(/(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?(?:9?\d{4}\-?\d{4})/);
   if (phoneMatch && !lead.buyer.phone) {
     lead.buyer.phone = phoneMatch[0].trim();
   }
 
+  // estado civil
   if (/solteiro|solteira/.test(lower) && !lead.buyer.marital_status) {
     lead.buyer.marital_status = "Solteiro(a)";
   }
@@ -265,6 +234,7 @@ function applyManualFieldExtraction(lead, userText) {
     lead.buyer.marital_status = "Divorciado(a)";
   }
 
+  // forma de pagamento
   if (/a vista|avista/.test(lower)) {
     lead.purchase.payment_mode = "avista";
   } else if (/parcelado|parcelar|entrada/.test(lower)) {
@@ -287,7 +257,7 @@ function applyManualFieldExtraction(lead, userText) {
     lead.buyer.phone = lead.phone;
   }
 
-  // Captura mais livre de endereço em PDFs/contas
+  // captura mais livre de endereço
   if (!lead.buyer.street) {
     const addressLine = txt.match(
       /\b(?:rua|avenida|av\.?|travessa|rodovia|estrada|alameda|loteamento|praça)\b[^\n]{8,120}/i
@@ -354,6 +324,7 @@ function applyManualFieldExtraction(lead, userText) {
     }
   }
 
+  // se mandou só o nome
   if (
     !lead.buyer.full_name &&
     txt &&
@@ -372,7 +343,7 @@ function applyManualFieldExtraction(lead, userText) {
 }
 
 // =================================
-// DETECÇÃO
+// DETECÇÃO DE INTENÇÃO
 // =================================
 function includesAny(t, arr) {
   return arr.some((x) => t.includes(x));
@@ -382,8 +353,8 @@ function detectIntent(t) {
   return {
     video: includesAny(t, ["video", "tour"]),
     photos: includesAny(t, ["foto", "fotos", "imagem", "imagens"]),
-    address: includesAny(t, ["endereco", "onde fica", "localizacao", "mapa"]),
-    price: includesAny(t, ["preco", "valor", "quanto custa"]),
+    address: includesAny(t, ["endereco", "endereço", "onde fica", "localizacao", "localização", "mapa"]),
+    price: includesAny(t, ["preco", "preço", "valor", "quanto custa"]),
     invest: includesAny(t, ["investir", "retorno", "renda", "investimento"]),
     visit: includesAny(t, ["visitar", "visita"]),
     buy: includesAny(t, [
@@ -393,12 +364,13 @@ function detectIntent(t) {
       "reservar",
       "quero pagar",
       "como faco pra pagar",
+      "como faço pra pagar",
       "contrato",
       "a vista",
       "avista",
       "parcelado"
     ]),
-    fullMedia: includesAny(t, ["me mostra tudo", "me envie tudo", "apresentacao completa"])
+    fullMedia: includesAny(t, ["me mostra tudo", "me envie tudo", "apresentacao completa", "apresentação completa"])
   };
 }
 
@@ -516,7 +488,7 @@ async function handleDirectClosing({ from, lead, t }) {
   const missingMsg = buildMissingDataMessage(lead);
 
   if (
-    /quero pagar|como faco pra pagar|contrato|quero fechar|quero comprar|reservar|a vista|avista|parcelado/.test(t)
+    /quero pagar|como faco pra pagar|como faço pra pagar|contrato|quero fechar|quero comprar|reservar|a vista|avista|parcelado/.test(t)
   ) {
     if (missingMsg) {
       await sendWhatsAppText(from, `${FECHAMENTO_INTRO}
@@ -806,4 +778,5 @@ Se fizer sentido para você, eu sigo agora com sua ficha.`
     });
   }
 };
+
 

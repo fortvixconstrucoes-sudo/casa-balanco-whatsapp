@@ -158,13 +158,30 @@ const videoCasa =
 
 const t = userText.toLowerCase();
 
+    // ==================================
+// DETECTORES INTELIGENTES
+// ==================================
+
+const detect = {
+
+video: /video|vídeo/.test(t),
+
+photos: /foto|fotos|imagem|imagens/.test(t),
+
+media: /ver|mostrar|mostra|me mostra|quero ver|tem foto|tem video|tem vídeo/.test(t),
+
+interest: /interesse|tenho interesse|quero saber|quero entender|como funciona/.test(t),
+
+hotLead: /vou fechar|quero comprar|quero fechar|quero reservar|quero pagar|manda contrato|à vista|parcelado|vamos fechar/.test(t)
+
+};
+
 
 // ==================================
 // DETECTAR PEDIDO DE VIDEO
 // ==================================
 
-const wantsVideo =
-/video|vídeo/.test(t)
+const wantsVideo = detect.video
 
 
 // ==================================

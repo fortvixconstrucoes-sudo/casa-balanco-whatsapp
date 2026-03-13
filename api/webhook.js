@@ -177,8 +177,8 @@ module.exports = async (req, res) => {
 
    const detect = {
 
-video:/\b(video|tour|filmagem)\b/.test(t),
-
+video:/\b(video|videos|vídeo|vídeos|tour)\b/.test(t)
+  
 photos:/\b(foto|fotos|imagem|imagens)\b/.test(t),
 
 media:/\b(ver|mostrar|mostra|me mostra|quero ver|tem foto|tem video)\b/.test(t),
@@ -193,18 +193,18 @@ hotLead:/\b(comprar|fechar|reservar|pagar|contrato|a vista|parcelado)\b/.test(t)
     // CLIENTE PEDIU VIDEO
     // ==================================
 
- if(detect.video){
+if(detect.video){
 
 await sendWhatsAppText(
 from,
-"Vou te mostrar um vídeo rápido da casa 👇"
+"Tenho sim 😊 Vou te mostrar um vídeo rápido da Casa Balanço do Mar."
 )
 
 await sendWhatsAppVideo(from,videoCasa)
 
 await sendWhatsAppText(
 from,
-"Você imagina usar mais para férias com a família ou também como investimento?"
+"A casa acomoda confortavelmente até 6 hóspedes. Você imagina usar mais para férias com a família ou também como investimento?"
 )
 
 return res.status(200).json({ok:true})

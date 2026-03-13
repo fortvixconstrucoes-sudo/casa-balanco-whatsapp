@@ -89,6 +89,55 @@ async function readImage(buffer) {
   }
 }
 
+async function transcribeAudio(buffer, mimeType = "audio/ogg") {
+  try {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      console.error("OPENAI_API_KEY não configurada.");
+      return "";
+    }
+
+    const FormData = require("form-data");
+
+    const form = new FormData();
+    form.append("file", buffer, {
+      filename: mimeType.includes("mpeg")
+        ? "audio.mp3"
+        : mimeType.includes("mp4")
+        ? "audio.m4a"
+        : mimeType.includes("wav")
+        ? "audio.wav"
+        : "audio.ogg",
+      contentType: mimeType
+    });
+
+    form.append("model", "gpt-4o-transcribe");
+    form.append("response_format", "text");
+
+    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        ...form.getHeaders()
+      },
+      body: form
+    });
+
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      console.error("Erro ao transcrever áudio:", json);
+      return "";
+    }
+
+    return (json?.text || "").trim();
+  } catch (err) {
+    console.error("Exceção ao transcrever áudio:", err?.message || err);
+    return "";
+  }
+}
+
+
 function guessAudioFilename(mimeType) {
   if (!mimeType) return "audio.ogg";
   if (mimeType.includes("mpeg")) return "audio.mp3";
@@ -153,8 +202,9 @@ function extractIncoming(body) {
 
   const documentId = msg?.document?.id;
   const imageId = msg?.image?.id;
+
   const audioId = msg?.audio?.id;
-  const audioMimeType = msg?.audio?.mime_type || "";
+  const audioMimeType = msg?.audio?.mime_type || "audio/ogg";
 
   const profileName = contact?.profile?.name;
 
@@ -169,6 +219,7 @@ function extractIncoming(body) {
     profileName
   };
 }
+
 
 // =================================
 // EXTRAÇÃO DE DADOS

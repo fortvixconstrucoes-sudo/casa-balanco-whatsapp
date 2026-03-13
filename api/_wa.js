@@ -3,6 +3,9 @@ async function sendWhatsAppRequest(body){
 const token = process.env.WHATSAPP_TOKEN
 const phoneNumberId = process.env.ID_DO_NUMERO_DE_TELEFONE
 
+if(!token) throw new Error("WHATSAPP_TOKEN missing")
+if(!phoneNumberId) throw new Error("PHONE_NUMBER_ID missing")
+
 const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`
 
 const res = await fetch(url,{
@@ -14,7 +17,14 @@ Authorization:`Bearer ${token}`,
 body:JSON.stringify(body)
 })
 
-return res.json()
+const json = await res.json().catch(()=>({}))
+
+if(!res.ok){
+console.error("WhatsApp API error:",json)
+throw new Error("WhatsApp send failed")
+}
+
+return json
 
 }
 
@@ -56,7 +66,6 @@ video:{link:videoUrl}
 })
 
 }
-
 
 module.exports = {
 sendWhatsAppText,

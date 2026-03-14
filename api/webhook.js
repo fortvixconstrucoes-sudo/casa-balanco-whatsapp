@@ -1,3 +1,4 @@
+const fetch = global.fetch || require("node-fetch");
 const FormData = require("form-data");
 const pdf = require("pdf-parse");
 const Tesseract = require("tesseract.js");
@@ -159,6 +160,9 @@ function extractIncoming(body) {
   const value = change?.value;
 
   const msg = value?.messages?.[0];
+  if (!msg) {
+  return res.status(200).json({ ok: true });
+}
   const contact = value?.contacts?.[0];
 
   const from = msg?.from;
@@ -190,7 +194,6 @@ function extractIncoming(body) {
   };
 }
 
-console.log("USER TEXT:", userText);
 
 // =================================
 // EXTRAÇÃO MANUAL DE DADOS
@@ -624,9 +627,17 @@ module.exports = async (req, res) => {
 
     let lead = await getLeadByPhone(from);
 
-    if (!lead.name && profileName) {
-      lead.name = profileName;
-    }
+if (!lead) {
+  lead = {
+    phone: from,
+    buyer: {},
+    spouse: {},
+    purchase: {},
+    history: [],
+    score: 0,
+    stage: "novo"
+  };
+}
 
     lead.buyer = lead.buyer || {};
     lead.spouse = lead.spouse || {};
@@ -718,6 +729,9 @@ if (isAddressRequest(userText)) {
 }
 
     const t = normalizeText(userText);
+    if (!userText || userText.trim() === "") {
+  return res.status(200).json({ ok: true });
+}
     const detect = detectIntent(t);
 
     if (detect.price) lead.score = (lead.score || 0) + 2;

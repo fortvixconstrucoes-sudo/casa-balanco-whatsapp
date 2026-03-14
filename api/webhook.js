@@ -43,6 +43,38 @@ https://www.google.com/maps?q=-17.324118246682865,-39.22221224575318`;
 const FECHAMENTO_INTRO = `Perfeito! Vamos finalizar sua fração 😊`;
 
 // =================================
+// DETECÇÃO ABSOLUTA DE ENDEREÇO
+// =================================
+function isAddressRequest(text = "") {
+  const raw = (text || "").toString().toLowerCase();
+  const tx = normalizeText(text || "");
+
+  return (
+    raw.includes("endereço") ||
+    raw.includes("localização") ||
+    raw.includes("mapa") ||
+    raw.includes("onde fica") ||
+    raw.includes("qual endereço") ||
+    raw.includes("tem endereço") ||
+    raw.includes("qual a localização") ||
+    raw.includes("tem a localização") ||
+    raw.includes("local") ||
+
+    tx.includes("endereco") ||
+    tx.includes("localizacao") ||
+    tx.includes("mapa") ||
+    tx.includes("onde fica") ||
+    tx.includes("qual endereco") ||
+    tx.includes("tem endereco") ||
+    tx.includes("qual a localizacao") ||
+    tx.includes("tem a localizacao") ||
+    tx === "endereco" ||
+    tx === "local" ||
+    tx === "mapa"
+  );
+}
+
+// =================================
 // DOWNLOAD DE ARQUIVO DO WHATSAPP
 // =================================
 async function downloadWhatsAppFile(fileId) {
@@ -153,27 +185,25 @@ async function transcribeAudio(buffer, mimeType = "audio/ogg") {
 // =================================
 // EXTRAIR MENSAGEM RECEBIDA
 // =================================
-
 function extractIncoming(body) {
   const entry = body?.entry?.[0];
   const change = entry?.changes?.[0];
   const value = change?.value;
 
   const msg = value?.messages?.[0];
-  if (!msg) {
-  return {};
-}
+  if (!msg) return {};
+
   const contact = value?.contacts?.[0];
 
   const from = msg?.from;
   const type = msg?.type;
- const text =
-  msg?.text?.body ||
-  msg?.caption ||
-  msg?.button?.text ||
-  msg?.interactive?.button_reply?.title ||
-  msg?.interactive?.list_reply?.title ||
-  "";
+  const text =
+    msg?.text?.body ||
+    msg?.caption ||
+    msg?.button?.text ||
+    msg?.interactive?.button_reply?.title ||
+    msg?.interactive?.list_reply?.title ||
+    "";
 
   const documentId = msg?.document?.id;
   const imageId = msg?.image?.id;
@@ -193,7 +223,6 @@ function extractIncoming(body) {
     profileName
   };
 }
-
 
 // =================================
 // EXTRAÇÃO MANUAL DE DADOS
@@ -353,7 +382,7 @@ function detectIntent(t) {
   return {
     video:
       /(^|\b)(video|tour)(\b|$)/.test(tx) ||
-      tx.includes("tem vídeo") ||
+      tx.includes("tem video") ||
       tx.includes("tem um video"),
 
     photos:
@@ -362,17 +391,6 @@ function detectIntent(t) {
       tx.includes("tem fotos") ||
       tx.includes("manda foto") ||
       tx.includes("manda fotos"),
-
-address:
-  tx.includes("endereco") ||
-  tx.includes("endereço") ||
-  tx.includes("localizacao") ||
-  tx.includes("localização") ||
-  tx.includes("onde fica") ||
-  tx.includes("qual endereco") ||
-  tx.includes("qual endereço") ||
-  tx.includes("mapa") ||
-  tx.includes("local"),
 
     price:
       tx.includes("preco") ||
@@ -420,16 +438,6 @@ async function sendAllBanners(to) {
 }
 
 async function handleDirectMediaIntent({ from, lead, detect }) {
-  if (detect.address) {
-    await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
-    await sendWhatsAppText(from, CASA_MAP_TEXT);
-
-    lead.sent_map = true;
-    lead.last_message = nowISO();
-    await upsertLead(lead);
-    return true;
-  }
-
   if (detect.fullMedia) {
     await sendWhatsAppText(from, "Vou te enviar a apresentação completa da casa 👇");
     await sendAllBanners(from);
@@ -453,25 +461,25 @@ async function handleDirectMediaIntent({ from, lead, detect }) {
   }
 
   if (detect.video) {
-  await sendWhatsAppText(from, "Vou te mostrar um vídeo rápido da casa 👇");
+    await sendWhatsAppText(from, "Vou te mostrar um vídeo rápido da casa 👇");
 
-  try {
-    await sendWhatsAppVideo(from, CASA_VIDEO_URL);
-    lead.sent_video = true;
-  } catch (err) {
-    console.error("VIDEO SEND FAIL:", err?.message || err);
-    await sendWhatsAppText(
-      from,
-      "O vídeo não carregou agora. Vou te enviar as imagens da casa para não te deixar esperando."
-    );
-    await sendAllBanners(from);
-    lead.sent_photos = true;
+    try {
+      await sendWhatsAppVideo(from, CASA_VIDEO_URL);
+      lead.sent_video = true;
+    } catch (err) {
+      console.error("VIDEO SEND FAIL:", err?.message || err);
+      await sendWhatsAppText(
+        from,
+        "O vídeo não carregou agora. Vou te enviar as imagens da casa para não te deixar esperando."
+      );
+      await sendAllBanners(from);
+      lead.sent_photos = true;
+    }
+
+    lead.last_message = nowISO();
+    await upsertLead(lead);
+    return true;
   }
-
-  lead.last_message = nowISO();
-  await upsertLead(lead);
-  return true;
-}
 
   if (detect.photos) {
     await sendWhatsAppText(from, "Vou te mostrar algumas imagens da casa 👇");
@@ -570,31 +578,6 @@ ${missingMsg}`
   return true;
 }
 
-function isAddressRequestRaw(text = "") {
-  const raw = (text || "").toString().toLowerCase();
-  const normalized = normalizeText(text || "");
-
-  return (
-    raw.includes("endereço") ||
-    raw.includes("localização") ||
-    raw.includes("mapa") ||
-    raw.includes("onde fica") ||
-    raw.includes("qual endereço") ||
-    raw.includes("tem endereço") ||
-    raw.includes("qual a localização") ||
-    raw.includes("tem a localização") ||
-
-    normalized.includes("endereco") ||
-    normalized.includes("localizacao") ||
-    normalized.includes("mapa") ||
-    normalized.includes("onde fica") ||
-    normalized.includes("qual endereco") ||
-    normalized.includes("tem endereco") ||
-    normalized.includes("qual a localizacao") ||
-    normalized.includes("tem a localizacao")
-  );
-}
-
 // =================================
 // WEBHOOK
 // =================================
@@ -618,48 +601,45 @@ module.exports = async (req, res) => {
     }
 
     const body = req.body || {};
-  const incoming = extractIncoming(body);
+    const incoming = extractIncoming(body);
 
-if (!incoming || !incoming.from) {
-  return res.status(200).json({ ok: true });
-}
+    if (!incoming || !incoming.from) {
+      return res.status(200).json({ ok: true });
+    }
 
-const {
-  from,
-  type,
-  text,
-  documentId,
-  imageId,
-  audioId,
-  audioMimeType,
-  profileName
-} = incoming;
-        // =================================
-    // ENDEREÇO / LOCALIZAÇÃO - BLOQUEIO ABSOLUTO
+    const {
+      from,
+      type,
+      text,
+      documentId,
+      imageId,
+      audioId,
+      audioMimeType,
+      profileName
+    } = incoming;
+
     // =================================
-    if (isAddressRequestRaw(text || "")) {
+    // ENDEREÇO / LOCALIZAÇÃO - SOLUÇÃO DEFINITIVA
+    // =================================
+    if (isAddressRequest(text || "")) {
       await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
       await sendWhatsAppText(from, CASA_MAP_TEXT);
       return res.status(200).json({ ok: true });
     }
 
-    if (!from) {
-      return res.status(200).json({ ok: true });
-    }
-
     let lead = await getLeadByPhone(from);
 
-if (!lead) {
-  lead = {
-    phone: from,
-    buyer: {},
-    spouse: {},
-    purchase: {},
-    history: [],
-    score: 0,
-    stage: "novo"
-  };
-}
+    if (!lead) {
+      lead = {
+        phone: from,
+        buyer: {},
+        spouse: {},
+        purchase: {},
+        history: [],
+        score: 0,
+        stage: "novo"
+      };
+    }
 
     lead.buyer = lead.buyer || {};
     lead.spouse = lead.spouse || {};
@@ -667,6 +647,10 @@ if (!lead) {
 
     if (!lead.buyer.phone) {
       lead.buyer.phone = from;
+    }
+
+    if (!lead.name && profileName) {
+      lead.name = profileName;
     }
 
     let userText = text || "";
@@ -721,55 +705,29 @@ if (!lead) {
     }
 
     // =================================
+    // ENDEREÇO / LOCALIZAÇÃO APÓS TRANSCRIÇÃO/OCR
+    // =================================
+    if (isAddressRequest(userText || "")) {
+      await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
+      await sendWhatsAppText(from, CASA_MAP_TEXT);
+
+      lead.sent_map = true;
+      lead.last_message = nowISO();
+      await upsertLead(lead);
+
+      return res.status(200).json({ ok: true });
+    }
+
+    // =================================
     // EXTRAÇÃO GERAL
     // =================================
     lead = applyManualFieldExtraction(lead, userText);
-    
-    const txt = normalizeText(userText);
 
-if (
-  txt.includes("endereco") ||
-  txt.includes("onde fica") ||
-  txt.includes("mapa") ||
-  txt.includes("localizacao") ||
-  txt.includes("local")
-) {
-
-  await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
-  await sendWhatsAppText(from, CASA_MAP_TEXT);
-
-  return res.status(200).json({ ok: true });
-}
-
- // =================================
-// ENDEREÇO / LOCALIZAÇÃO - PRIORIDADE MÁXIMA
-// =================================
-if (isAddressRequest(userText)) {
-
-  await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
-  await sendWhatsAppText(from, CASA_MAP_TEXT);
-
-  lead.sent_map = true;
-  lead.last_message = nowISO();
-
-  lead.history = clampHistory(
-    [
-      ...(lead.history || []),
-      { role: "user", content: userText, at: nowISO() },
-      { role: "assistant", content: `${CASA_ADDRESS_TEXT}\n\n${CASA_MAP_TEXT}`, at: nowISO() }
-    ],
-    30
-  );
-
-  await upsertLead(lead);
-
-  return res.status(200).json({ ok: true });
-}
+    if (!userText || !userText.trim()) {
+      return res.status(200).json({ ok: true });
+    }
 
     const t = normalizeText(userText);
-    if (!userText || userText.trim() === "") {
-  return res.status(200).json({ ok: true });
-}
     const detect = detectIntent(t);
 
     if (detect.price) lead.score = (lead.score || 0) + 2;
@@ -814,7 +772,7 @@ if (isAddressRequest(userText)) {
     }
 
     // =================================
-    // FLUXOS DIRETOS DE MÍDIA / ENDEREÇO
+    // FLUXOS DIRETOS DE MÍDIA
     // =================================
     const handledMedia = await handleDirectMediaIntent({ from, lead, detect });
     if (handledMedia) {

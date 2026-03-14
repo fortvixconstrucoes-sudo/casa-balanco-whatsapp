@@ -570,21 +570,29 @@ ${missingMsg}`
   return true;
 }
 
-function isAddressRequest(text = "") {
+function isAddressRequestRaw(text = "") {
+  const raw = (text || "").toString().toLowerCase();
+  const normalized = normalizeText(text || "");
 
-  const tx = normalizeText(text);
+  return (
+    raw.includes("endereço") ||
+    raw.includes("localização") ||
+    raw.includes("mapa") ||
+    raw.includes("onde fica") ||
+    raw.includes("qual endereço") ||
+    raw.includes("tem endereço") ||
+    raw.includes("qual a localização") ||
+    raw.includes("tem a localização") ||
 
-  const keywords = [
-    "endereco",
-    "localizacao",
-    "local",
-    "mapa",
-    "onde fica",
-    "onde e",
-    "qual endereco"
-  ];
-
-  return keywords.some(k => tx.includes(k));
+    normalized.includes("endereco") ||
+    normalized.includes("localizacao") ||
+    normalized.includes("mapa") ||
+    normalized.includes("onde fica") ||
+    normalized.includes("qual endereco") ||
+    normalized.includes("tem endereco") ||
+    normalized.includes("qual a localizacao") ||
+    normalized.includes("tem a localizacao")
+  );
 }
 
 // =================================
@@ -626,6 +634,14 @@ const {
   audioMimeType,
   profileName
 } = incoming;
+        // =================================
+    // ENDEREÇO / LOCALIZAÇÃO - BLOQUEIO ABSOLUTO
+    // =================================
+    if (isAddressRequestRaw(text || "")) {
+      await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
+      await sendWhatsAppText(from, CASA_MAP_TEXT);
+      return res.status(200).json({ ok: true });
+    }
 
     if (!from) {
       return res.status(200).json({ ok: true });

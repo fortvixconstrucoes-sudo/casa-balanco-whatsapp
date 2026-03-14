@@ -351,15 +351,12 @@ function detectIntent(t) {
       tx.includes("manda foto") ||
       tx.includes("manda fotos"),
 
-    address:
-      tx.includes("localizacao") ||
-      tx.includes("endereco") ||
-      tx.includes("onde fica") ||
-      tx.includes("mapa") ||
-      tx.includes("qual a localizacao") ||
-      tx.includes("tem a localizacao") ||
-      tx.includes("qual endereco") ||
-      tx.includes("tem endereco"),
+  address:
+  /localiza/.test(tx) ||
+  /endereco/.test(tx) ||
+  /onde fica/.test(tx) ||
+  /mapa/.test(tx) ||
+  /onde e/.test(tx),,
 
     price:
       tx.includes("preco") ||
@@ -797,6 +794,12 @@ Se fizer sentido para você, eu sigo agora com sua ficha.`
     // IA CONSULTIVA
     // =================================
     const reply = await generateReply({ lead, userText });
+
+    if (t.includes("local")) {
+  await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
+  await sendWhatsAppText(from, CASA_MAP_TEXT);
+  return res.status(200).json({ ok: true });
+}
 
     if (/ficha preenchida|assine e me devolva/i.test(reply)) {
       lead.contract_sent = true;

@@ -161,7 +161,7 @@ function extractIncoming(body) {
 
   const msg = value?.messages?.[0];
   if (!msg) {
-  return res.status(200).json({ ok: true });
+  return {};
 }
   const contact = value?.contacts?.[0];
 
@@ -610,16 +610,22 @@ module.exports = async (req, res) => {
     }
 
     const body = req.body || {};
-    const {
-      from,
-      type,
-      text,
-      documentId,
-      imageId,
-      audioId,
-      audioMimeType,
-      profileName
-    } = extractIncoming(body);
+  const incoming = extractIncoming(body);
+
+if (!incoming || !incoming.from) {
+  return res.status(200).json({ ok: true });
+}
+
+const {
+  from,
+  type,
+  text,
+  documentId,
+  imageId,
+  audioId,
+  audioMimeType,
+  profileName
+} = incoming;
 
     if (!from) {
       return res.status(200).json({ ok: true });

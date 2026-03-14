@@ -18,12 +18,13 @@ function nowISO() {
   return new Date().toISOString();
 }
 
-function normalizeText(s) {
-  return (s || "")
-    .trim()
+function normalizeText(text = "") {
+  return text
+    .toString()
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
 }
 
 function clampHistory(history, max = 20) {

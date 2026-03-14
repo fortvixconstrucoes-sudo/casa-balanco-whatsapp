@@ -351,12 +351,16 @@ function detectIntent(t) {
       tx.includes("manda foto") ||
       tx.includes("manda fotos"),
 
-  address:
-  /localiza/.test(tx) ||
-  /endereco/.test(tx) ||
-  /onde fica/.test(tx) ||
-  /mapa/.test(tx) ||
-  /onde e/.test(tx),,
+address:
+  tx.includes("endereco") ||
+  tx.includes("endereço") ||
+  tx.includes("localizacao") ||
+  tx.includes("localização") ||
+  tx.includes("onde fica") ||
+  tx.includes("qual endereco") ||
+  tx.includes("qual endereço") ||
+  tx.includes("mapa") ||
+  tx.includes("local"),
 
     price:
       tx.includes("preco") ||
@@ -559,13 +563,14 @@ function isAddressRequest(text = "") {
 
   return (
     tx.includes("endereco") ||
-    tx.includes("qual endereco") ||
-    tx.includes("tem endereco") ||
+    tx.includes("endereço") ||
     tx.includes("localizacao") ||
-    tx.includes("qual a localizacao") ||
-    tx.includes("tem a localizacao") ||
+    tx.includes("localização") ||
     tx.includes("onde fica") ||
-    tx.includes("mapa")
+    tx.includes("qual endereco") ||
+    tx.includes("qual endereço") ||
+    tx.includes("mapa") ||
+    tx.includes("local")
   );
 }
 
@@ -677,28 +682,30 @@ module.exports = async (req, res) => {
     // =================================
     lead = applyManualFieldExtraction(lead, userText);
 
-        // =================================
-    // ENDEREÇO / LOCALIZAÇÃO - PRIORIDADE MÁXIMA
-    // =================================
-    if (!sourceLabel && isAddressRequest(userText)) {
-      await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
-      await sendWhatsAppText(from, CASA_MAP_TEXT);
+ // =================================
+// ENDEREÇO / LOCALIZAÇÃO - PRIORIDADE MÁXIMA
+// =================================
+if (isAddressRequest(userText)) {
 
-      lead.sent_map = true;
-      lead.last_message = nowISO();
+  await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
+  await sendWhatsAppText(from, CASA_MAP_TEXT);
 
-      lead.history = clampHistory(
-        [
-          ...(lead.history || []),
-          { role: "user", content: userText, at: nowISO() },
-          { role: "assistant", content: `${CASA_ADDRESS_TEXT}\n\n${CASA_MAP_TEXT}`, at: nowISO() }
-        ],
-        30
-      );
+  lead.sent_map = true;
+  lead.last_message = nowISO();
 
-      await upsertLead(lead);
-      return res.status(200).json({ ok: true });
-    }
+  lead.history = clampHistory(
+    [
+      ...(lead.history || []),
+      { role: "user", content: userText, at: nowISO() },
+      { role: "assistant", content: `${CASA_ADDRESS_TEXT}\n\n${CASA_MAP_TEXT}`, at: nowISO() }
+    ],
+    30
+  );
+
+  await upsertLead(lead);
+
+  return res.status(200).json({ ok: true });
+}
 
     const t = normalizeText(userText);
     const detect = detectIntent(t);
@@ -794,12 +801,6 @@ Se fizer sentido para você, eu sigo agora com sua ficha.`
     // IA CONSULTIVA
     // =================================
     const reply = await generateReply({ lead, userText });
-
-    if (t.includes("local")) {
-  await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
-  await sendWhatsAppText(from, CASA_MAP_TEXT);
-  return res.status(200).json({ ok: true });
-}
 
     if (/ficha preenchida|assine e me devolva/i.test(reply)) {
       lead.contract_sent = true;

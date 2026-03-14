@@ -572,8 +572,8 @@ ${missingMsg}`
 
 function isAddressRequest(text = "") {
 
-  const tx = normalizeText(text);
-
+tx.includes(k)
+  
   const keywords = [
     "endereco",
     "localizacao",

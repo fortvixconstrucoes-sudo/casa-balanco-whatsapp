@@ -152,6 +152,7 @@ async function transcribeAudio(buffer, mimeType = "audio/ogg") {
 // =================================
 // EXTRAIR MENSAGEM RECEBIDA
 // =================================
+
 function extractIncoming(body) {
   const entry = body?.entry?.[0];
   const change = entry?.changes?.[0];
@@ -162,7 +163,13 @@ function extractIncoming(body) {
 
   const from = msg?.from;
   const type = msg?.type;
-  const text = msg?.text?.body || msg?.caption || "";
+ const text =
+  msg?.text?.body ||
+  msg?.caption ||
+  msg?.button?.text ||
+  msg?.interactive?.button_reply?.title ||
+  msg?.interactive?.list_reply?.title ||
+  "";
 
   const documentId = msg?.document?.id;
   const imageId = msg?.image?.id;
@@ -182,6 +189,8 @@ function extractIncoming(body) {
     profileName
   };
 }
+
+console.log("USER TEXT:", userText);
 
 // =================================
 // EXTRAÇÃO MANUAL DE DADOS
@@ -559,19 +568,20 @@ ${missingMsg}`
 }
 
 function isAddressRequest(text = "") {
+
   const tx = normalizeText(text);
 
-  return (
-    tx.includes("endereco") ||
-    tx.includes("endereço") ||
-    tx.includes("localizacao") ||
-    tx.includes("localização") ||
-    tx.includes("onde fica") ||
-    tx.includes("qual endereco") ||
-    tx.includes("qual endereço") ||
-    tx.includes("mapa") ||
-    tx.includes("local")
-  );
+  const keywords = [
+    "endereco",
+    "localizacao",
+    "local",
+    "mapa",
+    "onde fica",
+    "onde e",
+    "qual endereco"
+  ];
+
+  return keywords.some(k => tx.includes(k));
 }
 
 // =================================

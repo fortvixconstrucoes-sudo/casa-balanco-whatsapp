@@ -15,11 +15,11 @@ const stages = {
 };
 
 function nowISO() {
-  new Date().toISOString();
+  return new Date().toISOString();
 }
 
 function normalizeText(text = "") {
-  text
+  return text
     .toString()
     .toLowerCase()
     .normalize("NFD")
@@ -29,7 +29,7 @@ function normalizeText(text = "") {
 
 function clampHistory(history, max = 20) {
   const h = Array.isArray(history) ? history : [];
-  h.slice(-max);
+  return h.slice(-max);
 }
 
 // =============================
@@ -193,7 +193,7 @@ function getMissingBuyerFields(lead) {
   if (!b.phone) missing.push("telefone");
   if (!b.email) missing.push("e-mail");
 
-  missing;
+return missing;
 }
 
 function getMissingSpouseFields(lead) {
@@ -208,7 +208,7 @@ function getMissingSpouseFields(lead) {
   if (!s.marital_status) missing.push("estado civil do cônjuge");
   if (!s.property_regime) missing.push("regime de bens");
 
-  missing;
+  return missing;
 }
 
 // =============================
@@ -625,13 +625,14 @@ Como posso te chamar?`;
   }
 
 if (/(endereco|onde fica|localizacao|local|mapa|qual endereco|onde e)/.test(t)) {
-    `📍 A Casa Balanço do Mar fica em:
+  return `📍 A Casa Balanço do Mar fica em:
 
 ${lead.product.address}
 
-Localização no mapa:
+Vou te mandar o mapa e um vídeo rápido da casa 👇
+
 ${lead.product.map_link}`;
-  }
+}
 
   if (/como funciona|multipropriedade|fracao|fração/.test(t)) {
     `A multipropriedade funciona assim:

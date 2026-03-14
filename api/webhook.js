@@ -572,8 +572,8 @@ ${missingMsg}`
 
 function isAddressRequest(text = "") {
 
-tx.includes(k)
-  
+  const tx = normalizeText(text);
+
   const keywords = [
     "endereco",
     "localizacao",
@@ -708,6 +708,22 @@ if (!lead) {
     // EXTRAÇÃO GERAL
     // =================================
     lead = applyManualFieldExtraction(lead, userText);
+    
+    const txt = normalizeText(userText);
+
+if (
+  txt.includes("endereco") ||
+  txt.includes("onde fica") ||
+  txt.includes("mapa") ||
+  txt.includes("localizacao") ||
+  txt.includes("local")
+) {
+
+  await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
+  await sendWhatsAppText(from, CASA_MAP_TEXT);
+
+  return res.status(200).json({ ok: true });
+}
 
  // =================================
 // ENDEREÇO / LOCALIZAÇÃO - PRIORIDADE MÁXIMA

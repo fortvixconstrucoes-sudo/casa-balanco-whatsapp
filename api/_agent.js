@@ -15,11 +15,11 @@ const stages = {
 };
 
 function nowISO() {
-  return new Date().toISOString();
+  new Date().toISOString();
 }
 
 function normalizeText(text = "") {
-  return text
+  text
     .toString()
     .toLowerCase()
     .normalize("NFD")
@@ -29,7 +29,7 @@ function normalizeText(text = "") {
 
 function clampHistory(history, max = 20) {
   const h = Array.isArray(history) ? history : [];
-  return h.slice(-max);
+  h.slice(-max);
 }
 
 // =============================
@@ -40,46 +40,46 @@ function detectStage(text, lead) {
   const t = normalizeText(text);
 
   if (/comprar|fechar|reservar|pagar|contrato|assin|comprovante/.test(t)) {
-    return "fechamento";
+    "fechamento";
   }
 
   if (/parcelado|entrada|valor|preco|preço|avista|a vista/.test(t)) {
-    return "negociando";
+    "negociando";
   }
 
   if (/como funciona|multipropriedade|fracao|fração/.test(t)) {
-    return "avaliando";
+    "avaliando";
   }
 
   if (/foto|fotos|imagem|imagens|video|vídeo|tour|mostrar|ver/.test(t)) {
-    return "interessado";
+    "interessado";
   }
 
   if (/oi|ola|bom dia|boa tarde|boa noite/.test(t)) {
-    return "curioso";
+    "curioso";
   }
 
-  return lead.stage || "novo";
+  lead.stage || "novo";
 }
 
 function detectPurchaseIntent(text) {
   const t = normalizeText(text);
-  return /\b(comprar|fechar|reservar|pagar|contrato|garantir|a vista|avista|parcelado|assinar)\b/.test(t);
+  /\b(comprar|fechar|reservar|pagar|contrato|garantir|a vista|avista|parcelado|assinar)\b/.test(t);
 }
 
 function detectDocument(text) {
   const t = normalizeText(text);
-  return /documento|rg|cpf|cnh|comprovante|assinad/.test(t);
+  /documento|rg|cpf|cnh|comprovante|assinad/.test(t);
 }
 
 function detectMediaInterest(text) {
   const t = normalizeText(text);
-  return /\b(foto|fotos|imagem|imagens|video|vídeo|tour|mostrar|ver a casa|me mostra)\b/.test(t);
+  /\b(foto|fotos|imagem|imagens|video|vídeo|tour|mostrar|ver a casa|me mostra)\b/.test(t);
 }
 
 function isGreeting(txt) {
   const t = normalizeText(txt);
-  return ["oi", "ola", "bom dia", "boa tarde", "boa noite"].includes(t);
+  ["oi", "ola", "bom dia", "boa tarde", "boa noite"].includes(t);
 }
 
 // =============================
@@ -164,7 +164,7 @@ function ensureLeadStructures(lead) {
     "https://www.google.com/maps?q=-17.324118246682865,-39.22221224575318";
   lead.product.max_guests = lead.product.max_guests || 6;
 
-  return lead;
+  lead;
 }
 
 // =============================
@@ -173,7 +173,7 @@ function ensureLeadStructures(lead) {
 
 function spouseIsRequired(lead) {
   const marital = normalizeText(lead?.buyer?.marital_status || "");
-  return /casado|casada|uniao estavel|união estável|companheiro|companheira/.test(marital);
+  /casado|casada|uniao estavel|união estável|companheiro|companheira/.test(marital);
 }
 
 function getMissingBuyerFields(lead) {
@@ -193,11 +193,11 @@ function getMissingBuyerFields(lead) {
   if (!b.phone) missing.push("telefone");
   if (!b.email) missing.push("e-mail");
 
-  return missing;
+  missing;
 }
 
 function getMissingSpouseFields(lead) {
-  if (!spouseIsRequired(lead)) return [];
+  if (!spouseIsRequired(lead)) [];
 
   const s = lead.spouse || {};
   const missing = [];
@@ -208,7 +208,7 @@ function getMissingSpouseFields(lead) {
   if (!s.marital_status) missing.push("estado civil do cônjuge");
   if (!s.property_regime) missing.push("regime de bens");
 
-  return missing;
+  missing;
 }
 
 // =============================
@@ -217,14 +217,14 @@ function getMissingSpouseFields(lead) {
 
 function formatMoney(value) {
   const num = Number(value || 0);
-  return num.toLocaleString("pt-BR", {
+  num.toLocaleString("pt-BR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
 }
 
 function buildPaymentDataMessage() {
-  return `💳 DADOS PARA PAGAMENTO
+  `💳 DADOS PARA PAGAMENTO
 
 Banco: 336 - Banco C6 S.A.
 Agência: 0001
@@ -237,9 +237,9 @@ Chave Pix: 48.180.148/0001-81`;
 function buildMissingDataMessage(lead) {
   const missing = [...getMissingBuyerFields(lead), ...getMissingSpouseFields(lead)];
 
-  if (!missing.length) return null;
+  if (!missing.length) null;
 
-  return `Perfeito! Para eu preencher sua ficha completa sem erro, preciso só destes dados:
+  `Perfeito! Para eu preencher sua ficha completa sem erro, preciso só destes dados:
 
 • ${missing.join("\n• ")}
 
@@ -264,7 +264,7 @@ function buildContractFormText(lead) {
     paymentText = `Parcelado | Entrada: R$ ${formatMoney(purchase.entry_value || 7290)} | ${purchase.installments || "-"}x de R$ ${formatMoney(purchase.installment_value || 0)}`;
   }
 
-  return `📄 FICHA DE RESERVA – CASA BALANÇO DO MAR
+  `📄 FICHA DE RESERVA – CASA BALANÇO DO MAR
 
 I – DADOS DO COMPRADOR
 Nome completo: ${buyer.full_name || "-"}
@@ -328,7 +328,7 @@ function mergeBuyerDataFromText(lead, text = "") {
   const birth = src.match(/\b\d{2}\/\d{2}\/\d{4}\b/);
   if (birth && !lead.buyer.birth_date) lead.buyer.birth_date = birth[0];
 
-  return lead;
+  lead;
 }
 
 // =============================
@@ -339,30 +339,30 @@ function buildFollowUp(lead) {
   const stage = lead.stage;
 
   if (stage === "curioso") {
-    return "Você chegou a ver as imagens da Casa Balanço do Mar?";
+    "Você chegou a ver as imagens da Casa Balanço do Mar?";
   }
 
   if (stage === "interessado") {
-    return "Queria saber se você conseguiu ver o vídeo da casa 😊";
+    "Queria saber se você conseguiu ver o vídeo da casa 😊";
   }
 
   if (stage === "avaliando") {
-    return "Muita gente leva um tempinho para entender bem como funciona a multipropriedade. Quer que eu te explique de forma simples?";
+    "Muita gente leva um tempinho para entender bem como funciona a multipropriedade. Quer que eu te explique de forma simples?";
   }
 
   if (stage === "negociando") {
-    return "Você chegou a pensar se faria mais sentido à vista ou parcelado?";
+    "Você chegou a pensar se faria mais sentido à vista ou parcelado?";
   }
 
   if (stage === "decisao") {
-    return "Se fizer sentido para você, posso te mostrar como garantir sua fração.";
+    "Se fizer sentido para você, posso te mostrar como garantir sua fração.";
   }
 
   if (stage === "fechamento") {
-    return "Se quiser, eu já posso te enviar a ficha preenchida para conferência e assinatura.";
+    "Se quiser, eu já posso te enviar a ficha preenchida para conferência e assinatura.";
   }
 
-  return "Oi! Só passando para saber se você conseguiu ver as informações da Casa Balanço do Mar 😊";
+  "Oi! Só passando para saber se você conseguiu ver as informações da Casa Balanço do Mar 😊";
 }
 
 function buildRecoveryMessage() {
@@ -373,7 +373,7 @@ function buildRecoveryMessage() {
     "Se fizer sentido para você, posso retomar exatamente de onde paramos 😊"
   ];
 
-  return msgs[Math.floor(Math.random() * msgs.length)];
+  msgs[Math.floor(Math.random() * msgs.length)];
 }
 
 // =============================
@@ -385,7 +385,7 @@ function buildSystemPrompt(lead) {
 
   const product = lead.product || {};
 
-  return `
+  `
 IDENTIDADE DO CONSULTOR
 
 Você é o consultor oficial da Casa Balanço do Mar.
@@ -589,7 +589,7 @@ async function callOpenAI({ system, messages }) {
   const text = json?.choices?.[0]?.message?.content?.trim();
   if (!text) throw new Error("OpenAI empty response");
 
-  return text;
+  text;
 }
 
 // =============================
@@ -599,26 +599,33 @@ async function callOpenAI({ system, messages }) {
 function quickSmartReply({ lead, userText }) {
   const t = normalizeText(userText);
 
-  if (!lead.name && userText && userText.length <= 24 && !isGreeting(userText) && !/@/.test(userText)) {
-    return `Prazer, ${userText}! 😊
+  if (
+  !lead.name &&
+  userText &&
+  userText.length <= 24 &&
+  !isGreeting(userText) &&
+  !/@/.test(userText) &&
+  !/\?|endereco|local|mapa/.test(normalizeText(userText))
+)
+    `Prazer, ${userText}! 😊
 
 Você imagina usar mais a Casa Balanço do Mar para férias com a família ou também como investimento?`;
   }
 
   if (isGreeting(userText) && lead.name) {
-    return `Que bom falar com você, ${lead.name}! 😊
+    `Que bom falar com você, ${lead.name}! 😊
 
 Você quer conhecer primeiro a casa ou entender como funciona a multipropriedade?`;
   }
 
   if (isGreeting(userText) && !lead.name) {
-    return `Oi! 😊 Que bom ter você por aqui.
+    `Oi! 😊 Que bom ter você por aqui.
 
 Como posso te chamar?`;
   }
 
-  if (/endereco|endereço|onde fica|localizacao|localização|mapa/.test(t)) {
-    return `📍 A Casa Balanço do Mar fica em:
+if (/(endereco|onde fica|localizacao|local|mapa|qual endereco|onde e)/.test(t)) {
+    `📍 A Casa Balanço do Mar fica em:
 
 ${lead.product.address}
 
@@ -627,7 +634,7 @@ ${lead.product.map_link}`;
   }
 
   if (/como funciona|multipropriedade|fracao|fração/.test(t)) {
-    return `A multipropriedade funciona assim:
+    `A multipropriedade funciona assim:
 
 Você adquire uma fração da casa e garante 2 semanas por ano.
 
@@ -637,7 +644,7 @@ Você imagina usar mais para férias com a família ou também como investimento
   }
 
   if (/quanto custa|valor|preco|preço/.test(t)) {
-    return `Hoje a condição está assim:
+    `Hoje a condição está assim:
 
 À vista: R$ ${formatMoney(lead.product.fraction_value)}
 
@@ -647,7 +654,7 @@ Quer que eu te mostre as opções de parcelamento?`;
   }
 
   if (/prefiro alugar/.test(t)) {
-    return `Faz sentido pensar nisso 😊
+    `Faz sentido pensar nisso 😊
 
 A diferença é que aqui você não fica só no uso temporário.
 
@@ -657,7 +664,7 @@ Você olha mais pelo uso ou pelo patrimônio?`;
   }
 
   if (/e se eu nao usar|e se eu não usar/.test(t)) {
-    return `Se em algum período você não quiser usar, existem alternativas 😊
+    `Se em algum período você não quiser usar, existem alternativas 😊
 
 Você pode trocar semanas, locar sua semana ou reorganizar seu calendário.
 
@@ -665,7 +672,7 @@ Quer que eu te explique isso de forma simples?`;
   }
 
   if (/posso revender|tem revenda|revender/.test(t)) {
-    return `Sim 😊
+    `Sim 😊
 
 A fração pode ser vendida para outro interessado.
 
@@ -673,7 +680,7 @@ Muita gente inclusive vê isso como patrimônio e flexibilidade.`;
   }
 
   if (/seguro|lei|juridico|jurídico/.test(t)) {
-    return `Sim, existe segurança jurídica 😊
+    `Sim, existe segurança jurídica 😊
 
 A multipropriedade é regulamentada pela Lei 13.777/2018.
 
@@ -681,7 +688,7 @@ Isso dá base legal ao modelo e mais tranquilidade para quem compra.`;
   }
 
   if (/visitar|visita|conhecer antes/.test(t)) {
-    return `A visita é opcional 😊
+    `A visita é opcional 😊
 
 Algumas pessoas preferem visitar primeiro.
 
@@ -689,7 +696,7 @@ Outras fecham após conhecer a apresentação, a casa e a estrutura do projeto.`
   }
 
   if (/familia|família/.test(t)) {
-    return `Perfeito 😊
+    `Perfeito 😊
 
 Usar com a família é exatamente o que muita gente busca.
 
@@ -700,7 +707,7 @@ Normalmente quantas pessoas viajariam com você com mais frequência?`;
     const missingMsg = buildMissingDataMessage(lead);
 
     if (missingMsg) {
-      return `Perfeito! Vou te passar o processo completo para garantir sua fração 😊
+      `Perfeito! Vou te passar o processo completo para garantir sua fração 😊
 
 1. Eu preencho sua ficha
 2. Te envio para conferência e assinatura
@@ -711,7 +718,7 @@ Normalmente quantas pessoas viajariam com você com mais frequência?`;
 ${missingMsg}`;
     }
 
-    return `${buildContractFormText(lead)}
+    `${buildContractFormText(lead)}
 
 Perfeito! Estou te enviando a ficha preenchida.
 
@@ -720,7 +727,7 @@ Confira, assine e me devolva assinada junto com o comprovante de pagamento para 
 ${buildPaymentDataMessage()}`;
   }
 
-  return null;
+  null;
 }
 
 // =============================
@@ -788,7 +795,7 @@ Valor parcela: ${lead.purchase?.installment_value || "-"}`
     content: userText
   });
 
-  return messages;
+  messages;
 }
 
 // =============================
@@ -798,7 +805,17 @@ Valor parcela: ${lead.purchase?.installment_value || "-"}`
 async function generateReply({ lead, userText }) {
   ensureLeadStructures(lead);
 
-  const t = normalizeText(userText);
+ const t = normalizeText(userText);
+
+if (/(endereco|onde fica|localizacao|local|mapa|qual endereco|onde e)/.test(t)) {
+return `📍 A Casa Balanço do Mar fica em:
+
+${lead.product.address}
+
+Vou te mandar o mapa e um vídeo rápido da casa 👇
+
+${lead.product.map_link}`;
+  
   const detectedStage = detectStage(userText, lead);
 
   if (stages[detectedStage] > stages[lead.stage || "novo"]) {
@@ -810,18 +827,18 @@ async function generateReply({ lead, userText }) {
   }
 
   const fast = quickSmartReply({ lead, userText });
-  if (fast) return fast;
+  if (fast) fast;
 
   const missingMsg = buildMissingDataMessage(lead);
 
   if (/quero comprar|quero fechar|reservar|contrato/.test(t) && missingMsg) {
-    return `Perfeito! Vamos seguir com sua reserva 😊
+    `Perfeito! Vamos seguir com sua reserva 😊
 
 ${missingMsg}`;
   }
 
   if (/quero comprar|quero fechar|reservar|contrato/.test(t) && !missingMsg) {
-    return `${buildContractFormText(lead)}
+    `${buildContractFormText(lead)}
 
 Perfeito! Estou te enviando a ficha preenchida.
 
@@ -831,7 +848,7 @@ ${buildPaymentDataMessage()}`;
   }
 
   if (detectDocument(userText) && !missingMsg) {
-    return `${buildContractFormText(lead)}
+    `${buildContractFormText(lead)}
 
 Perfeito! Recebi seus dados 😊
 
@@ -841,7 +858,7 @@ ${buildPaymentDataMessage()}`;
   }
 
   if (detectDocument(userText) && missingMsg) {
-    return `Perfeito! Recebi parte dos seus dados 😊
+    `Perfeito! Recebi parte dos seus dados 😊
 
 ${missingMsg}`;
   }
@@ -850,7 +867,7 @@ ${missingMsg}`;
   const messages = buildMessagesForAI(lead, userText);
   const reply = await callOpenAI({ system, messages });
 
-  return reply;
+  reply;
 }
 
 module.exports = {

@@ -557,6 +557,21 @@ ${missingMsg}`
   return true;
 }
 
+function isAddressRequest(text = "") {
+  const tx = normalizeText(text);
+
+  return (
+    tx.includes("endereco") ||
+    tx.includes("qual endereco") ||
+    tx.includes("tem endereco") ||
+    tx.includes("localizacao") ||
+    tx.includes("qual a localizacao") ||
+    tx.includes("tem a localizacao") ||
+    tx.includes("onde fica") ||
+    tx.includes("mapa")
+  );
+}
+
 // =================================
 // WEBHOOK
 // =================================
@@ -664,6 +679,29 @@ module.exports = async (req, res) => {
     // EXTRAÇÃO GERAL
     // =================================
     lead = applyManualFieldExtraction(lead, userText);
+
+        // =================================
+    // ENDEREÇO / LOCALIZAÇÃO - PRIORIDADE MÁXIMA
+    // =================================
+    if (!sourceLabel && isAddressRequest(userText)) {
+      await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
+      await sendWhatsAppText(from, CASA_MAP_TEXT);
+
+      lead.sent_map = true;
+      lead.last_message = nowISO();
+
+      lead.history = clampHistory(
+        [
+          ...(lead.history || []),
+          { role: "user", content: userText, at: nowISO() },
+          { role: "assistant", content: `${CASA_ADDRESS_TEXT}\n\n${CASA_MAP_TEXT}`, at: nowISO() }
+        ],
+        30
+      );
+
+      await upsertLead(lead);
+      return res.status(200).json({ ok: true });
+    }
 
     const t = normalizeText(userText);
     const detect = detectIntent(t);

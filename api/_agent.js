@@ -623,14 +623,12 @@ Você quer conhecer primeiro a casa ou entender como funciona a multipropriedade
 
 Como posso te chamar?`;
   }
-
 if (/(endereco|onde fica|localizacao|local|mapa|qual endereco|onde e)/.test(t)) {
   return `📍 A Casa Balanço do Mar fica em:
 
 ${lead.product.address}
 
-Vou te mandar o mapa e um vídeo rápido da casa 👇
-
+Localização no mapa:
 ${lead.product.map_link}`;
 }
 
@@ -809,13 +807,13 @@ async function generateReply({ lead, userText }) {
  const t = normalizeText(userText);
 
 if (/(endereco|onde fica|localizacao|local|mapa|qual endereco|onde e)/.test(t)) {
-return `📍 A Casa Balanço do Mar fica em:
+  return `📍 A Casa Balanço do Mar fica em:
 
 ${lead.product.address}
 
-Vou te mandar o mapa e um vídeo rápido da casa 👇
-
+Localização no mapa:
 ${lead.product.map_link}`;
+}
   
   const detectedStage = detectStage(userText, lead);
 

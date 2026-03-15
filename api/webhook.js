@@ -1,7 +1,6 @@
 const fetch = global.fetch || require("node-fetch");
 const FormData = require("form-data");
 const pdf = require("pdf-parse");
-const Tesseract = require("tesseract.js");
 
 const { sendWhatsAppImage, sendWhatsAppVideo, sendWhatsAppText } = require("./_wa");
 const { getLeadByPhone, upsertLead } = require("./_supabase");
@@ -84,19 +83,6 @@ async function readPDF(buffer) {
     return data?.text || "";
   } catch (err) {
     console.error("PDF READ ERROR:", err?.message || err);
-    return "";
-  }
-}
-
-// =================================
-// OCR DE IMAGEM
-// =================================
-async function readImage(buffer) {
-  try {
-    const result = await Tesseract.recognize(buffer, "por");
-    return result?.data?.text || "";
-  } catch (err) {
-    console.error("OCR ERROR:", err?.message || err);
     return "";
   }
 }
@@ -552,35 +538,13 @@ ${missingMsg}`
 }
 
 // =================================
-// RESPOSTA TRAVADA DE ENDEREÇO
-// =================================
-async function replyWithAddress(from, lead = null) {
-  await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
-  await sendWhatsAppText(from, CASA_MAP_TEXT);
-
-  if (lead) {
-    lead.sent_map = true;
-    lead.last_message = nowISO();
-    lead.history = clampHistory(
-      [
-        ...(lead.history || []),
-        {
-          role: "assistant",
-          content: `${CASA_ADDRESS_TEXT}\n\n${CASA_MAP_TEXT}`,
-          at: nowISO()
-        }
-      ],
-      30
-    );
-    await upsertLead(lead);
-  }
-}
-
-// =================================
 // WEBHOOK
 // =================================
 module.exports = async (req, res) => {
   try {
+    // ===============================
+    // VERIFICAÇÃO META
+    // ===============================
     if (req.method === "GET") {
       const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
       const mode = req.query["hub.mode"];
@@ -616,11 +580,24 @@ module.exports = async (req, res) => {
       profileName
     } = incoming;
 
+    let userText = text || "";
+    let sourceLabel = "";
+
+    // =================================
+    // PRIORIDADE MÁXIMA: ENDEREÇO
+    // =================================
+    if (isAddressRequest(userText)) {
+      await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
+      await sendWhatsAppText(from, CASA_MAP_TEXT);
+      return res.status(200).json({ ok: true });
+    }
+
     let lead = await getLeadByPhone(from);
 
     if (!lead) {
       lead = {
         phone: from,
+        name: profileName || null,
         buyer: {},
         spouse: {},
         purchase: {},
@@ -642,26 +619,8 @@ module.exports = async (req, res) => {
       lead.name = profileName;
     }
 
-    let userText = text || "";
-    let sourceLabel = "";
-
     // =================================
-    // PRIORIDADE MÁXIMA: TEXTO PURO DE ENDEREÇO
-    // =================================
-    if (isAddressRequest(userText)) {
-      lead.history = clampHistory(
-        [
-          ...(lead.history || []),
-          { role: "user", content: userText, at: nowISO() }
-        ],
-        30
-      );
-      await replyWithAddress(from, lead);
-      return res.status(200).json({ ok: true });
-    }
-
-    // =================================
-    // DOCUMENTO
+    // DOCUMENTO PDF
     // =================================
     if (type === "document" && documentId) {
       const buffer = await downloadWhatsAppFile(documentId);
@@ -676,19 +635,14 @@ module.exports = async (req, res) => {
 
     // =================================
     // IMAGEM
+    // REMOVIDO OCR/TESSERACT PARA NÃO QUEBRAR NO VERCEL
     // =================================
     if (type === "image" && imageId) {
-      const buffer = await downloadWhatsAppFile(imageId);
-      const imgText = await readImage(buffer);
-
-      if (imgText && imgText.trim().length > 12) {
-        lead = mergeBuyerDataFromText(lead, imgText);
-        lead = applyManualFieldExtraction(lead, imgText);
-        userText = imgText;
-        sourceLabel = "imagem";
-      } else {
-        userText = text || "Cliente enviou imagem.";
-      }
+      await sendWhatsAppText(
+        from,
+        "Recebi sua imagem 😊\n\nSe for ficha ou documento, pode me enviar em PDF ou escrever os dados aqui que eu preencho para você."
+      );
+      return res.status(200).json({ ok: true });
     }
 
     // =================================
@@ -709,21 +663,16 @@ module.exports = async (req, res) => {
     }
 
     // =================================
-    // PRIORIDADE MÁXIMA: ENDEREÇO APÓS OCR/PDF/ÁUDIO
+    // ENDEREÇO APÓS PDF / ÁUDIO
     // =================================
     if (isAddressRequest(userText)) {
-      lead.history = clampHistory(
-        [
-          ...(lead.history || []),
-          {
-            role: "user",
-            content: sourceLabel ? `[${sourceLabel}] ${userText}` : userText,
-            at: nowISO()
-          }
-        ],
-        30
-      );
-      await replyWithAddress(from, lead);
+      await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
+      await sendWhatsAppText(from, CASA_MAP_TEXT);
+
+      lead.sent_map = true;
+      lead.last_message = nowISO();
+      await upsertLead(lead);
+
       return res.status(200).json({ ok: true });
     }
 
@@ -766,9 +715,9 @@ module.exports = async (req, res) => {
     lead = await upsertLead(lead);
 
     // =================================
-    // FLUXO DIRETO DE DOCUMENTO / IMAGEM / ÁUDIO
+    // FLUXO DIRETO DE DOCUMENTO / ÁUDIO
     // =================================
-    if (sourceLabel) {
+    if (sourceLabel === "documento" || sourceLabel === "áudio") {
       const handledDocProgress = await handleDocumentDrivenProgress({
         from,
         lead,
@@ -853,7 +802,6 @@ Se fizer sentido para você, eu sigo agora com sua ficha.`
     await upsertLead(lead);
 
     const parts = reply.split("\n\n");
-
     for (const part of parts) {
       if (part.trim()) {
         await sendWhatsAppText(from, part.trim());

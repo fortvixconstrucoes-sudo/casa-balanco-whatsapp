@@ -13,7 +13,8 @@ const {
   buildContractFormText,
   buildPaymentDataMessage,
   buildMissingDataMessage,
-  mergeBuyerDataFromText
+  mergeBuyerDataFromText,
+  isAddressRequest
 } = require("./_agent");
 
 // =================================
@@ -41,38 +42,6 @@ const CASA_MAP_TEXT = `Localização no mapa:
 https://www.google.com/maps?q=-17.324118246682865,-39.22221224575318`;
 
 const FECHAMENTO_INTRO = `Perfeito! Vamos finalizar sua fração 😊`;
-
-// =================================
-// DETECÇÃO ABSOLUTA DE ENDEREÇO
-// =================================
-function isAddressRequest(text = "") {
-  const raw = (text || "").toString().toLowerCase();
-  const tx = normalizeText(text || "");
-
-  return (
-    raw.includes("endereço") ||
-    raw.includes("localização") ||
-    raw.includes("mapa") ||
-    raw.includes("onde fica") ||
-    raw.includes("qual endereço") ||
-    raw.includes("tem endereço") ||
-    raw.includes("qual a localização") ||
-    raw.includes("tem a localização") ||
-    raw.includes("local") ||
-
-    tx.includes("endereco") ||
-    tx.includes("localizacao") ||
-    tx.includes("mapa") ||
-    tx.includes("onde fica") ||
-    tx.includes("qual endereco") ||
-    tx.includes("tem endereco") ||
-    tx.includes("qual a localizacao") ||
-    tx.includes("tem a localizacao") ||
-    tx === "endereco" ||
-    tx === "local" ||
-    tx === "mapa"
-  );
-}
 
 // =================================
 // DOWNLOAD DE ARQUIVO DO WHATSAPP

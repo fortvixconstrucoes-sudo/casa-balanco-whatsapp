@@ -18,6 +18,7 @@ const {
 } = require("./_agent");
 
 // =================================
+
 // LINKS FIXOS
 // =================================
 const CASA_VIDEO_URL =
@@ -569,32 +570,32 @@ module.exports = async (req, res) => {
       return res.status(405).json({ ok: false });
     }
 
-    const body = req.body || {};
-    const incoming = extractIncoming(body);
+   const body = req.body || {};
+const incoming = extractIncoming(body);
 
-    if (!incoming || !incoming.from) {
-      return res.status(200).json({ ok: true });
-    }
+if (!incoming || !incoming.from) {
+  return res.status(200).json({ ok: true });
+}
 
-    const {
-      from,
-      type,
-      text,
-      documentId,
-      imageId,
-      audioId,
-      audioMimeType,
-      profileName
-    } = incoming;
+const {
+  from,
+  type,
+  text,
+  documentId,
+  imageId,
+  audioId,
+  audioMimeType,
+  profileName
+} = incoming;
 
-const userTextNormalized = normalizeText(userText);
+let userText = text || "";
+let sourceLabel = "";
 
-if (isAddressRequest(userTextNormalized)) {
+// PRIORIDADE MÁXIMA: ENDEREÇO / LOCALIZAÇÃO
+if (isAddressRequest(userText)) {
   await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
   await sendWhatsAppText(from, CASA_MAP_TEXT);
-  
-  // IMPORTANTE: Retornar aqui para o código parar e não consultar a IA
-  return res.status(200).json({ ok: true }); 
+  return res.status(200).json({ ok: true });
 }
 
     let lead = await getLeadByPhone(from);
@@ -626,54 +627,54 @@ if (isAddressRequest(userTextNormalized)) {
     let userText = text || "";
     let sourceLabel = "";
 
-    // =================================
-    // DOCUMENTO PDF
-    // =================================
-    if (type === "document" && documentId) {
-      const buffer = await downloadWhatsAppFile(documentId);
-      const pdfText = await readPDF(buffer);
+// DOCUMENTO
+if (type === "document" && documentId) {
+  const buffer = await downloadWhatsAppFile(documentId);
+  const pdfText = await readPDF(buffer);
 
-      lead = mergeBuyerDataFromText(lead, pdfText);
-      lead = applyManualFieldExtraction(lead, pdfText);
+  lead = mergeBuyerDataFromText(lead, pdfText);
+  lead = applyManualFieldExtraction(lead, pdfText);
 
-      userText = pdfText || "Cliente enviou documento PDF para cadastro.";
-      sourceLabel = "documento";
-    }
+  userText = pdfText || "Cliente enviou documento PDF para cadastro.";
+  sourceLabel = "documento";
+}
 
-    // =================================
-    // IMAGEM
-    // =================================
-    if (type === "image" && imageId) {
-      const buffer = await downloadWhatsAppFile(imageId);
-      const imgText = await readImage(buffer);
+// IMAGEM
+if (type === "image" && imageId) {
+  const buffer = await downloadWhatsAppFile(imageId);
+  const imgText = await readImage(buffer);
 
-      if (imgText && imgText.trim().length > 12) {
-        lead = mergeBuyerDataFromText(lead, imgText);
-        lead = applyManualFieldExtraction(lead, imgText);
-        userText = imgText;
-        sourceLabel = "imagem";
-      } else {
-        userText = text || "Cliente enviou imagem.";
-      }
-    }
+  if (imgText && imgText.trim().length > 12) {
+    lead = mergeBuyerDataFromText(lead, imgText);
+    lead = applyManualFieldExtraction(lead, imgText);
+    userText = imgText;
+    sourceLabel = "imagem";
+  } else {
+    userText = text || "Cliente enviou imagem.";
+  }
+}
 
-    // =================================
-    // ÁUDIO
-    // =================================
-    if (type === "audio" && audioId) {
-      const buffer = await downloadWhatsAppFile(audioId);
-      const transcript = await transcribeAudio(buffer, audioMimeType);
+// ÁUDIO
+if (type === "audio" && audioId) {
+  const buffer = await downloadWhatsAppFile(audioId);
+  const transcript = await transcribeAudio(buffer, audioMimeType);
 
-      if (transcript) {
-        lead = applyManualFieldExtraction(lead, transcript);
-        userText = transcript;
-      } else {
-        userText = "Cliente enviou áudio, mas não foi possível transcrever automaticamente.";
-      }
+  if (transcript) {
+    lead = applyManualFieldExtraction(lead, transcript);
+    userText = transcript;
+    sourceLabel = "áudio";
+  } else {
+    userText = "Cliente enviou áudio, mas não foi possível transcrever automaticamente.";
+    sourceLabel = "áudio";
+  }
+}
 
-      sourceLabel = "áudio";
-    }
-
+// TESTA DE NOVO APÓS OCR / PDF / ÁUDIO
+if (isAddressRequest(userText)) {
+  await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
+  await sendWhatsAppText(from, CASA_MAP_TEXT);
+  return res.status(200).json({ ok: true });
+}
     // =================================
     // ENDEREÇO / LOCALIZAÇÃO APÓS TRANSCRIÇÃO/OCR
     // =================================

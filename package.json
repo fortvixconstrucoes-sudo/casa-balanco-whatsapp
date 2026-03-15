@@ -2,7 +2,6 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
     "form-data": "^4.0.0",
-    "pdf-parse": "^1.1.1",
-    "tesseract.js": "^4.1.1"
+    "pdf-parse": "^1.1.1"
   }
 }

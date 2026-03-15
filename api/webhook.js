@@ -46,17 +46,64 @@ const FECHAMENTO_INTRO = `Perfeito! Vamos finalizar sua fração 😊`;
 // =================================
 // HELPERS
 // =================================
-async function sendAddressFlow(from, lead = null) {
+function createEmptyLead(from, profileName) {
+  return {
+    phone: from,
+    name: profileName || null,
+    buyer: { phone: from },
+    spouse: {},
+    purchase: {},
+    history: [],
+    score: 0,
+    stage: "novo",
+    sent_map: false,
+    sent_photos: false,
+    sent_video: false,
+    media_sent: false,
+    proposal_sent: false,
+    contract_sent: false,
+    payment_requested: false,
+    payment_proof_requested: false,
+    signed_form_requested: false
+  };
+}
+
+function ensureLeadShape(lead, from, profileName) {
+  const safe = lead || createEmptyLead(from, profileName);
+
+  safe.phone = safe.phone || from;
+  safe.name = safe.name || profileName || null;
+  safe.buyer = safe.buyer || {};
+  safe.spouse = safe.spouse || {};
+  safe.purchase = safe.purchase || {};
+  safe.history = Array.isArray(safe.history) ? safe.history : [];
+  safe.stage = safe.stage || "novo";
+  safe.score = Number(safe.score || 0);
+
+  if (!safe.buyer.phone) {
+    safe.buyer.phone = from;
+  }
+
+  return safe;
+}
+
+async function sendAddressFlow(from, lead, userText) {
+  console.log("WEBHOOK_V11_ADDRESS_LOCK", { from, userText });
+
   await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
   await sendWhatsAppText(from, CASA_MAP_TEXT);
 
   if (lead) {
     lead.sent_map = true;
     lead.last_message = nowISO();
-
     lead.history = clampHistory(
       [
         ...(lead.history || []),
+        {
+          role: "user",
+          content: userText || "pedido de endereço",
+          at: nowISO()
+        },
         {
           role: "assistant",
           content: `${CASA_ADDRESS_TEXT}\n\n${CASA_MAP_TEXT}`,
@@ -74,34 +121,6 @@ async function sendAllBanners(to) {
   for (const banner of CASA_BANNERS) {
     await sendWhatsAppImage(to, banner);
   }
-}
-
-function ensureLeadShape(lead, from, profileName) {
-  const base = lead || {
-    phone: from,
-    name: null,
-    buyer: {},
-    spouse: {},
-    purchase: {},
-    history: [],
-    score: 0,
-    stage: "novo"
-  };
-
-  base.phone = base.phone || from;
-  base.name = base.name || profileName || null;
-  base.buyer = base.buyer || {};
-  base.spouse = base.spouse || {};
-  base.purchase = base.purchase || {};
-  base.history = Array.isArray(base.history) ? base.history : [];
-  base.score = Number(base.score || 0);
-  base.stage = base.stage || "novo";
-
-  if (!base.buyer.phone) {
-    base.buyer.phone = from;
-  }
-
-  return base;
 }
 
 // =================================
@@ -646,24 +665,14 @@ module.exports = async (req, res) => {
     } = incoming;
 
     let lead = ensureLeadShape(await getLeadByPhone(from), from, profileName);
-
     let userText = text || "";
     let sourceLabel = "";
 
     // =================================
-    // PRIORIDADE ABSOLUTA: ENDEREÇO NO TEXTO ORIGINAL
+    // PRIORIDADE 1: TEXTO ORIGINAL
     // =================================
     if (isAddressRequest(userText)) {
-      lead.history = clampHistory(
-        [
-          ...(lead.history || []),
-          { role: "user", content: userText, at: nowISO() }
-        ],
-        30
-      );
-
-      await upsertLead(lead);
-      await sendAddressFlow(from, lead);
+      await sendAddressFlow(from, lead, userText);
       return res.status(200).json({ ok: true });
     }
 
@@ -717,23 +726,10 @@ module.exports = async (req, res) => {
     }
 
     // =================================
-    // PRIORIDADE ABSOLUTA: ENDEREÇO APÓS OCR/PDF/ÁUDIO
+    // PRIORIDADE 2: APÓS PDF / OCR / ÁUDIO
     // =================================
     if (isAddressRequest(userText)) {
-      lead.history = clampHistory(
-        [
-          ...(lead.history || []),
-          {
-            role: "user",
-            content: sourceLabel ? `[${sourceLabel}] ${userText}` : userText,
-            at: nowISO()
-          }
-        ],
-        30
-      );
-
-      await upsertLead(lead);
-      await sendAddressFlow(from, lead);
+      await sendAddressFlow(from, lead, userText);
       return res.status(200).json({ ok: true });
     }
 
@@ -778,7 +774,10 @@ module.exports = async (req, res) => {
     // =================================
     // FLUXO DIRETO DE DOCUMENTO / IMAGEM / ÁUDIO
     // =================================
-    if (sourceLabel && /cpf|rg|documento|comprovante|nome|endereco|endereço|cep|cidade|estado/i.test(userText)) {
+    if (
+      sourceLabel &&
+      /cpf|rg|documento|comprovante|nome|endereco|endereço|cep|cidade|estado/i.test(userText)
+    ) {
       const handledDocProgress = await handleDocumentDrivenProgress({
         from,
         lead,

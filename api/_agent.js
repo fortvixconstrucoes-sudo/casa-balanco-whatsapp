@@ -84,6 +84,7 @@ function isGreeting(txt) {
 
 function isAddressRequest(text = "") {
   const t = normalizeText(text);
+
   return (
     t.includes("endereco") ||
     t.includes("localizacao") ||
@@ -93,12 +94,14 @@ function isAddressRequest(text = "") {
     t.includes("qual a localizacao") ||
     t.includes("tem endereco") ||
     t.includes("tem localizacao") ||
+    t.includes("qual localizacao") ||
+    t.includes("qual bairro") ||
+    t.includes("bairro") ||
     t === "endereco" ||
     t === "local" ||
     t === "mapa"
   );
 }
-
 // =============================
 // MÍDIA
 // =============================

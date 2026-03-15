@@ -18,7 +18,6 @@ const {
 } = require("./_agent");
 
 // =================================
-
 // LINKS FIXOS
 // =================================
 const CASA_VIDEO_URL =
@@ -43,6 +42,67 @@ const CASA_MAP_TEXT = `Localização no mapa:
 https://www.google.com/maps?q=-17.324118246682865,-39.22221224575318`;
 
 const FECHAMENTO_INTRO = `Perfeito! Vamos finalizar sua fração 😊`;
+
+// =================================
+// HELPERS
+// =================================
+async function sendAddressFlow(from, lead = null) {
+  await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
+  await sendWhatsAppText(from, CASA_MAP_TEXT);
+
+  if (lead) {
+    lead.sent_map = true;
+    lead.last_message = nowISO();
+
+    lead.history = clampHistory(
+      [
+        ...(lead.history || []),
+        {
+          role: "assistant",
+          content: `${CASA_ADDRESS_TEXT}\n\n${CASA_MAP_TEXT}`,
+          at: nowISO()
+        }
+      ],
+      30
+    );
+
+    await upsertLead(lead);
+  }
+}
+
+async function sendAllBanners(to) {
+  for (const banner of CASA_BANNERS) {
+    await sendWhatsAppImage(to, banner);
+  }
+}
+
+function ensureLeadShape(lead, from, profileName) {
+  const base = lead || {
+    phone: from,
+    name: null,
+    buyer: {},
+    spouse: {},
+    purchase: {},
+    history: [],
+    score: 0,
+    stage: "novo"
+  };
+
+  base.phone = base.phone || from;
+  base.name = base.name || profileName || null;
+  base.buyer = base.buyer || {};
+  base.spouse = base.spouse || {};
+  base.purchase = base.purchase || {};
+  base.history = Array.isArray(base.history) ? base.history : [];
+  base.score = Number(base.score || 0);
+  base.stage = base.stage || "novo";
+
+  if (!base.buyer.phone) {
+    base.buyer.phone = from;
+  }
+
+  return base;
+}
 
 // =================================
 // DOWNLOAD DE ARQUIVO DO WHATSAPP
@@ -401,12 +461,6 @@ function detectIntent(t) {
 // =================================
 // MÍDIA DIRETA
 // =================================
-async function sendAllBanners(to) {
-  for (const banner of CASA_BANNERS) {
-    await sendWhatsAppImage(to, banner);
-  }
-}
-
 async function handleDirectMediaIntent({ from, lead, detect }) {
   if (detect.fullMedia) {
     await sendWhatsAppText(from, "Vou te enviar a apresentação completa da casa 👇");
@@ -553,6 +607,9 @@ ${missingMsg}`
 // =================================
 module.exports = async (req, res) => {
   try {
+    // =================================
+    // VERIFICAÇÃO META
+    // =================================
     if (req.method === "GET") {
       const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
       const mode = req.query["hub.mode"];
@@ -570,122 +627,113 @@ module.exports = async (req, res) => {
       return res.status(405).json({ ok: false });
     }
 
-   const body = req.body || {};
-const incoming = extractIncoming(body);
+    const body = req.body || {};
+    const incoming = extractIncoming(body);
 
-if (!incoming || !incoming.from) {
-  return res.status(200).json({ ok: true });
-}
-
-const {
-  from,
-  type,
-  text,
-  documentId,
-  imageId,
-  audioId,
-  audioMimeType,
-  profileName
-} = incoming;
-
-let userText = text || "";
-let sourceLabel = "";
-
-// PRIORIDADE MÁXIMA: ENDEREÇO / LOCALIZAÇÃO
-if (isAddressRequest(userText)) {
-  await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
-  await sendWhatsAppText(from, CASA_MAP_TEXT);
-  return res.status(200).json({ ok: true });
-}
-
-    let lead = await getLeadByPhone(from);
-
-    if (!lead) {
-      lead = {
-        phone: from,
-        buyer: {},
-        spouse: {},
-        purchase: {},
-        history: [],
-        score: 0,
-        stage: "novo"
-      };
+    if (!incoming || !incoming.from) {
+      return res.status(200).json({ ok: true });
     }
 
-    lead.buyer = lead.buyer || {};
-    lead.spouse = lead.spouse || {};
-    lead.purchase = lead.purchase || {};
+    const {
+      from,
+      type,
+      text,
+      documentId,
+      imageId,
+      audioId,
+      audioMimeType,
+      profileName
+    } = incoming;
 
-    if (!lead.buyer.phone) {
-      lead.buyer.phone = from;
-    }
-
-    if (!lead.name && profileName) {
-      lead.name = profileName;
-    }
+    let lead = ensureLeadShape(await getLeadByPhone(from), from, profileName);
 
     let userText = text || "";
     let sourceLabel = "";
 
-// DOCUMENTO
-if (type === "document" && documentId) {
-  const buffer = await downloadWhatsAppFile(documentId);
-  const pdfText = await readPDF(buffer);
-
-  lead = mergeBuyerDataFromText(lead, pdfText);
-  lead = applyManualFieldExtraction(lead, pdfText);
-
-  userText = pdfText || "Cliente enviou documento PDF para cadastro.";
-  sourceLabel = "documento";
-}
-
-// IMAGEM
-if (type === "image" && imageId) {
-  const buffer = await downloadWhatsAppFile(imageId);
-  const imgText = await readImage(buffer);
-
-  if (imgText && imgText.trim().length > 12) {
-    lead = mergeBuyerDataFromText(lead, imgText);
-    lead = applyManualFieldExtraction(lead, imgText);
-    userText = imgText;
-    sourceLabel = "imagem";
-  } else {
-    userText = text || "Cliente enviou imagem.";
-  }
-}
-
-// ÁUDIO
-if (type === "audio" && audioId) {
-  const buffer = await downloadWhatsAppFile(audioId);
-  const transcript = await transcribeAudio(buffer, audioMimeType);
-
-  if (transcript) {
-    lead = applyManualFieldExtraction(lead, transcript);
-    userText = transcript;
-    sourceLabel = "áudio";
-  } else {
-    userText = "Cliente enviou áudio, mas não foi possível transcrever automaticamente.";
-    sourceLabel = "áudio";
-  }
-}
-
-// TESTA DE NOVO APÓS OCR / PDF / ÁUDIO
-if (isAddressRequest(userText)) {
-  await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
-  await sendWhatsAppText(from, CASA_MAP_TEXT);
-  return res.status(200).json({ ok: true });
-}
     // =================================
-    // ENDEREÇO / LOCALIZAÇÃO APÓS TRANSCRIÇÃO/OCR
+    // PRIORIDADE ABSOLUTA: ENDEREÇO NO TEXTO ORIGINAL
     // =================================
-    if (isAddressRequest(userText || "")) {
-      await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
-      await sendWhatsAppText(from, CASA_MAP_TEXT);
+    if (isAddressRequest(userText)) {
+      lead.history = clampHistory(
+        [
+          ...(lead.history || []),
+          { role: "user", content: userText, at: nowISO() }
+        ],
+        30
+      );
 
-      lead.sent_map = true;
-      lead.last_message = nowISO();
       await upsertLead(lead);
+      await sendAddressFlow(from, lead);
+      return res.status(200).json({ ok: true });
+    }
 
+    // =================================
+    // DOCUMENTO
+    // =================================
+    if (type === "document" && documentId) {
+      const buffer = await downloadWhatsAppFile(documentId);
+      const pdfText = await readPDF(buffer);
+
+      lead = mergeBuyerDataFromText(lead, pdfText);
+      lead = applyManualFieldExtraction(lead, pdfText);
+
+      userText = pdfText || "Cliente enviou documento PDF para cadastro.";
+      sourceLabel = "documento";
+    }
+
+    // =================================
+    // IMAGEM
+    // =================================
+    if (type === "image" && imageId) {
+      const buffer = await downloadWhatsAppFile(imageId);
+      const imgText = await readImage(buffer);
+
+      if (imgText && imgText.trim().length > 12) {
+        lead = mergeBuyerDataFromText(lead, imgText);
+        lead = applyManualFieldExtraction(lead, imgText);
+
+        userText = imgText;
+        sourceLabel = "imagem";
+      } else {
+        userText = text || "Cliente enviou imagem.";
+      }
+    }
+
+    // =================================
+    // ÁUDIO
+    // =================================
+    if (type === "audio" && audioId) {
+      const buffer = await downloadWhatsAppFile(audioId);
+      const transcript = await transcribeAudio(buffer, audioMimeType);
+
+      if (transcript) {
+        lead = applyManualFieldExtraction(lead, transcript);
+        userText = transcript;
+      } else {
+        userText = "Cliente enviou áudio, mas não foi possível transcrever automaticamente.";
+      }
+
+      sourceLabel = "áudio";
+    }
+
+    // =================================
+    // PRIORIDADE ABSOLUTA: ENDEREÇO APÓS OCR/PDF/ÁUDIO
+    // =================================
+    if (isAddressRequest(userText)) {
+      lead.history = clampHistory(
+        [
+          ...(lead.history || []),
+          {
+            role: "user",
+            content: sourceLabel ? `[${sourceLabel}] ${userText}` : userText,
+            at: nowISO()
+          }
+        ],
+        30
+      );
+
+      await upsertLead(lead);
+      await sendAddressFlow(from, lead);
       return res.status(200).json({ ok: true });
     }
 
@@ -730,7 +778,7 @@ if (isAddressRequest(userText)) {
     // =================================
     // FLUXO DIRETO DE DOCUMENTO / IMAGEM / ÁUDIO
     // =================================
-    if (sourceLabel) {
+    if (sourceLabel && /cpf|rg|documento|comprovante|nome|endereco|endereço|cep|cidade|estado/i.test(userText)) {
       const handledDocProgress = await handleDocumentDrivenProgress({
         from,
         lead,

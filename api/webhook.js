@@ -44,86 +44,6 @@ https://www.google.com/maps?q=-17.324118246682865,-39.22221224575318`;
 const FECHAMENTO_INTRO = `Perfeito! Vamos finalizar sua fração 😊`;
 
 // =================================
-// HELPERS
-// =================================
-function createEmptyLead(from, profileName) {
-  return {
-    phone: from,
-    name: profileName || null,
-    buyer: { phone: from },
-    spouse: {},
-    purchase: {},
-    history: [],
-    score: 0,
-    stage: "novo",
-    sent_map: false,
-    sent_photos: false,
-    sent_video: false,
-    media_sent: false,
-    proposal_sent: false,
-    contract_sent: false,
-    payment_requested: false,
-    payment_proof_requested: false,
-    signed_form_requested: false
-  };
-}
-
-function ensureLeadShape(lead, from, profileName) {
-  const safe = lead || createEmptyLead(from, profileName);
-
-  safe.phone = safe.phone || from;
-  safe.name = safe.name || profileName || null;
-  safe.buyer = safe.buyer || {};
-  safe.spouse = safe.spouse || {};
-  safe.purchase = safe.purchase || {};
-  safe.history = Array.isArray(safe.history) ? safe.history : [];
-  safe.stage = safe.stage || "novo";
-  safe.score = Number(safe.score || 0);
-
-  if (!safe.buyer.phone) {
-    safe.buyer.phone = from;
-  }
-
-  return safe;
-}
-
-async function sendAddressFlow(from, lead, userText) {
-  console.log("WEBHOOK_V11_ADDRESS_LOCK", { from, userText });
-
-  await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
-  await sendWhatsAppText(from, CASA_MAP_TEXT);
-
-  if (lead) {
-    lead.sent_map = true;
-    lead.last_message = nowISO();
-    lead.history = clampHistory(
-      [
-        ...(lead.history || []),
-        {
-          role: "user",
-          content: userText || "pedido de endereço",
-          at: nowISO()
-        },
-        {
-          role: "assistant",
-          content: `${CASA_ADDRESS_TEXT}\n\n${CASA_MAP_TEXT}`,
-          at: nowISO()
-        }
-      ],
-      30
-    );
-
-    await upsertLead(lead);
-  }
-}
-
-async function sendAllBanners(to) {
-  for (const banner of CASA_BANNERS) {
-    await sendWhatsAppImage(to, banner);
-  }
-}
-
-// =================================
 // DOWNLOAD DE ARQUIVO DO WHATSAPP
 // =================================
 async function downloadWhatsAppFile(fileId) {
@@ -136,7 +56,9 @@ async function downloadWhatsAppFile(fileId) {
   const metaJson = await meta.json().catch(() => ({}));
 
   if (!meta.ok || !metaJson?.url) {
-    throw new Error(`Falha ao obter metadados do arquivo WhatsApp: ${JSON.stringify(metaJson)}`);
+    throw new Error(
+      `Falha ao obter metadados do arquivo WhatsApp: ${JSON.stringify(metaJson)}`
+    );
   }
 
   const file = await fetch(metaJson.url, {
@@ -299,7 +221,9 @@ function applyManualFieldExtraction(lead, userText) {
   const rgLabel = txt.match(/\brg[:\s]*([0-9.\-xX]{5,20})/i);
   if (rgLabel && !lead.buyer.rg) lead.buyer.rg = rgLabel[1].trim();
 
-  const phoneMatch = txt.match(/(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?(?:9?\d{4}\-?\d{4})/);
+  const phoneMatch = txt.match(
+    /(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?(?:9?\d{4}\-?\d{4})/
+  );
   if (phoneMatch && !lead.buyer.phone) {
     lead.buyer.phone = phoneMatch[0].trim();
   }
@@ -480,6 +404,12 @@ function detectIntent(t) {
 // =================================
 // MÍDIA DIRETA
 // =================================
+async function sendAllBanners(to) {
+  for (const banner of CASA_BANNERS) {
+    await sendWhatsAppImage(to, banner);
+  }
+}
+
 async function handleDirectMediaIntent({ from, lead, detect }) {
   if (detect.fullMedia) {
     await sendWhatsAppText(from, "Vou te enviar a apresentação completa da casa 👇");
@@ -622,13 +552,35 @@ ${missingMsg}`
 }
 
 // =================================
+// RESPOSTA TRAVADA DE ENDEREÇO
+// =================================
+async function replyWithAddress(from, lead = null) {
+  await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
+  await sendWhatsAppText(from, CASA_MAP_TEXT);
+
+  if (lead) {
+    lead.sent_map = true;
+    lead.last_message = nowISO();
+    lead.history = clampHistory(
+      [
+        ...(lead.history || []),
+        {
+          role: "assistant",
+          content: `${CASA_ADDRESS_TEXT}\n\n${CASA_MAP_TEXT}`,
+          at: nowISO()
+        }
+      ],
+      30
+    );
+    await upsertLead(lead);
+  }
+}
+
+// =================================
 // WEBHOOK
 // =================================
 module.exports = async (req, res) => {
   try {
-    // =================================
-    // VERIFICAÇÃO META
-    // =================================
     if (req.method === "GET") {
       const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
       const mode = req.query["hub.mode"];
@@ -664,15 +616,47 @@ module.exports = async (req, res) => {
       profileName
     } = incoming;
 
-    let lead = ensureLeadShape(await getLeadByPhone(from), from, profileName);
+    let lead = await getLeadByPhone(from);
+
+    if (!lead) {
+      lead = {
+        phone: from,
+        buyer: {},
+        spouse: {},
+        purchase: {},
+        history: [],
+        score: 0,
+        stage: "novo"
+      };
+    }
+
+    lead.buyer = lead.buyer || {};
+    lead.spouse = lead.spouse || {};
+    lead.purchase = lead.purchase || {};
+
+    if (!lead.buyer.phone) {
+      lead.buyer.phone = from;
+    }
+
+    if (!lead.name && profileName) {
+      lead.name = profileName;
+    }
+
     let userText = text || "";
     let sourceLabel = "";
 
     // =================================
-    // PRIORIDADE 1: TEXTO ORIGINAL
+    // PRIORIDADE MÁXIMA: TEXTO PURO DE ENDEREÇO
     // =================================
     if (isAddressRequest(userText)) {
-      await sendAddressFlow(from, lead, userText);
+      lead.history = clampHistory(
+        [
+          ...(lead.history || []),
+          { role: "user", content: userText, at: nowISO() }
+        ],
+        30
+      );
+      await replyWithAddress(from, lead);
       return res.status(200).json({ ok: true });
     }
 
@@ -700,7 +684,6 @@ module.exports = async (req, res) => {
       if (imgText && imgText.trim().length > 12) {
         lead = mergeBuyerDataFromText(lead, imgText);
         lead = applyManualFieldExtraction(lead, imgText);
-
         userText = imgText;
         sourceLabel = "imagem";
       } else {
@@ -726,10 +709,21 @@ module.exports = async (req, res) => {
     }
 
     // =================================
-    // PRIORIDADE 2: APÓS PDF / OCR / ÁUDIO
+    // PRIORIDADE MÁXIMA: ENDEREÇO APÓS OCR/PDF/ÁUDIO
     // =================================
     if (isAddressRequest(userText)) {
-      await sendAddressFlow(from, lead, userText);
+      lead.history = clampHistory(
+        [
+          ...(lead.history || []),
+          {
+            role: "user",
+            content: sourceLabel ? `[${sourceLabel}] ${userText}` : userText,
+            at: nowISO()
+          }
+        ],
+        30
+      );
+      await replyWithAddress(from, lead);
       return res.status(200).json({ ok: true });
     }
 
@@ -774,10 +768,7 @@ module.exports = async (req, res) => {
     // =================================
     // FLUXO DIRETO DE DOCUMENTO / IMAGEM / ÁUDIO
     // =================================
-    if (
-      sourceLabel &&
-      /cpf|rg|documento|comprovante|nome|endereco|endereço|cep|cidade|estado/i.test(userText)
-    ) {
+    if (sourceLabel) {
       const handledDocProgress = await handleDocumentDrivenProgress({
         from,
         lead,

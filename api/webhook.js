@@ -587,14 +587,15 @@ module.exports = async (req, res) => {
       profileName
     } = incoming;
 
-    // =================================
-    // ENDEREÇO / LOCALIZAÇÃO - SOLUÇÃO DEFINITIVA
-    // =================================
-    if (isAddressRequest(text || "")) {
-      await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
-      await sendWhatsAppText(from, CASA_MAP_TEXT);
-      return res.status(200).json({ ok: true });
-    }
+const userTextNormalized = normalizeText(userText);
+
+if (isAddressRequest(userTextNormalized)) {
+  await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
+  await sendWhatsAppText(from, CASA_MAP_TEXT);
+  
+  // IMPORTANTE: Retornar aqui para o código parar e não consultar a IA
+  return res.status(200).json({ ok: true }); 
+}
 
     let lead = await getLeadByPhone(from);
 

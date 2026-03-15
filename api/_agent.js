@@ -82,6 +82,23 @@ function isGreeting(txt) {
   return ["oi", "ola", "bom dia", "boa tarde", "boa noite"].includes(t);
 }
 
+function isAddressRequest(text = "") {
+  const t = normalizeText(text);
+  return (
+    t.includes("endereco") ||
+    t.includes("localizacao") ||
+    t.includes("onde fica") ||
+    t.includes("mapa") ||
+    t.includes("qual endereco") ||
+    t.includes("qual a localizacao") ||
+    t.includes("tem endereco") ||
+    t.includes("tem localizacao") ||
+    t === "endereco" ||
+    t === "local" ||
+    t === "mapa"
+  );
+}
+
 // =============================
 // MÍDIA
 // =============================
@@ -116,7 +133,7 @@ async function sendCasaMedia(phone) {
 async function alertOwner(lead, text) {
   try {
     const ownerPhone = process.env.OWNER_PHONE;
-    if (!ownerPhone) return;
+    if (!ownerPhone || !process.env.WHATSAPP_URL) return;
 
     const msg = `🔥 LEAD QUENTE
 
@@ -173,7 +190,7 @@ function ensureLeadStructures(lead) {
 
 function spouseIsRequired(lead) {
   const marital = normalizeText(lead?.buyer?.marital_status || "");
-  return /casado|casada|uniao estavel|união estável|companheiro|companheira/.test(marital);
+  return /casado|casada|uniao estavel|companheiro|companheira/.test(marital);
 }
 
 function getMissingBuyerFields(lead) {
@@ -382,7 +399,6 @@ function buildRecoveryMessage() {
 
 function buildSystemPrompt(lead) {
   ensureLeadStructures(lead);
-
   const product = lead.product || {};
 
   return `
@@ -529,6 +545,15 @@ function quickSmartReply({ lead, userText }) {
   const t = normalizeText(userText);
   ensureLeadStructures(lead);
 
+  if (isAddressRequest(userText)) {
+    return `📍 A Casa Balanço do Mar fica em:
+
+${lead.product.address}
+
+Localização no mapa:
+${lead.product.map_link}`;
+  }
+
   if (
     !lead.name &&
     userText &&
@@ -552,15 +577,6 @@ Você quer conhecer primeiro a casa ou entender como funciona a multipropriedade
     return `Oi! 😊 Que bom ter você por aqui.
 
 Como posso te chamar?`;
-  }
-
-  if (/(endereco|onde fica|localizacao|local|mapa|qual endereco|onde e)/.test(t)) {
-    return `📍 A Casa Balanço do Mar fica em:
-
-${lead.product.address}
-
-Localização no mapa:
-${lead.product.map_link}`;
   }
 
   if (/como funciona|multipropriedade|fracao|fração/.test(t)) {
@@ -737,7 +753,7 @@ async function generateReply({ lead, userText }) {
 
   const t = normalizeText(userText);
 
-  if (/(endereco|onde fica|localizacao|local|mapa|qual endereco|onde e)/.test(t)) {
+  if (isAddressRequest(userText)) {
     return `📍 A Casa Balanço do Mar fica em:
 
 ${lead.product.address}
@@ -809,6 +825,7 @@ module.exports = {
   detectPurchaseIntent,
   detectDocument,
   detectMediaInterest,
+  isAddressRequest,
   buildFollowUp,
   buildRecoveryMessage,
   alertOwner,

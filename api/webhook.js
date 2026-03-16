@@ -2,15 +2,18 @@ const { sendWhatsAppText } = require("./_wa");
 
 module.exports = async (req, res) => {
   try {
-    if (req.method === "GET") {
-      const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
-      const mode = req.query["hub.mode"];
-      const token = req.query["hub.verify_token"];
-      const challenge = req.query["hub.challenge"];
+   if (req.method === "GET") {
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
 
-      if (mode === "subscribe" && token === verifyToken) {
-        return res.status(200).send(challenge);
-      }
+  if (mode === "subscribe" && token === verifyToken) {
+    return res.status(200).send(challenge);
+  }
+
+  return res.status(200).send("WEBHOOK ONLINE OK");
+}
       
 if (req.method === "GET") {
   const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;

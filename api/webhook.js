@@ -337,6 +337,33 @@ function applyManualFieldExtraction(lead, userText) {
 }
 
 // =================================
+// DETECÇÃO DE SEMANAS DESEJADAS
+// =================================
+function detectDesiredWeeks(text = "") {
+  const t = normalizeText(text);
+  const weeks = [];
+
+  if (t.includes("janeiro")) weeks.push("Janeiro");
+  if (t.includes("fevereiro")) weeks.push("Fevereiro");
+  if (t.includes("marco") || t.includes("março")) weeks.push("Março");
+  if (t.includes("abril")) weeks.push("Abril");
+  if (t.includes("maio")) weeks.push("Maio");
+  if (t.includes("junho")) weeks.push("Junho");
+  if (t.includes("julho")) weeks.push("Julho");
+  if (t.includes("agosto")) weeks.push("Agosto");
+  if (t.includes("setembro")) weeks.push("Setembro");
+  if (t.includes("outubro")) weeks.push("Outubro");
+  if (t.includes("novembro")) weeks.push("Novembro");
+  if (t.includes("dezembro")) weeks.push("Dezembro");
+
+  if (t.includes("carnaval")) weeks.push("Carnaval");
+  if (t.includes("natal")) weeks.push("Natal");
+  if (t.includes("reveillon") || t.includes("réveillon")) weeks.push("Reveillon");
+
+  return weeks;
+}
+
+// =================================
 // DETECÇÃO DE INTENÇÃO
 // =================================
 function detectIntent(text = "") {
@@ -423,6 +450,63 @@ negotiation:
       tx.includes("apresentacao completa") ||
       tx.includes("apresentação completa")
   };
+}
+
+// =================================
+// DETECÇÃO DE OBJEÇÕES
+// =================================
+function detectObjection(text = "") {
+  const t = normalizeText(text);
+
+  if (t.includes("caro") || t.includes("muito caro")) {
+    return `Entendo perfeitamente 😊
+
+Muita gente tem essa primeira impressão.
+
+Mas quando comparam com:
+
+• aluguel de casa de praia  
+• custo de hotel todos os anos  
+• valorização da região de Prado  
+
+percebem que a fração acaba sendo uma forma muito mais inteligente de garantir férias em família.
+
+Hoje temos apenas 26 frações.
+
+Algumas já foram reservadas.
+
+Por isso muita gente prefere garantir agora e escolher as semanas depois.
+
+O que mais pesou para você quando viu o valor?`;
+  }
+
+  if (t.includes("vou pensar")) {
+    return `Claro 😊
+
+É uma decisão importante.
+
+Mas deixa eu te perguntar uma coisa rápida:
+
+Você está mais inclinado a:
+
+1️⃣ parcelar  
+ou  
+2️⃣ aproveitar o valor à vista?
+
+Isso me ajuda a te orientar melhor.`;
+  }
+
+  if (t.includes("falar com minha esposa") || t.includes("falar com meu marido")) {
+    return `Perfeito 😊
+
+Muitos clientes fazem isso mesmo.
+
+Se quiser, posso te mandar um resumo simples da fração para vocês analisarem juntos.
+
+Assim fica mais fácil decidir.`;
+  }
+
+  return null;
 }
 
 // =================================
@@ -861,11 +945,40 @@ module.exports = async (req, res) => {
     const t = normalizeText(userText);
     const detect = detectIntent(t);
 
+    // verificar objeção do cliente
+const objectionReply = detectObjection(userText);
+
+if (objectionReply) {
+  await sendWhatsAppText(from, objectionReply);
+  return res.status(200).json({ ok: true, route: "objection" });
+}
+    
+    // salvar semanas desejadas pelo cliente
+const desiredWeeks = detectDesiredWeeks(userText);
+
+if (desiredWeeks.length) {
+  lead.desired_weeks = Array.from(
+    new Set([...(lead.desired_weeks || []), ...desiredWeeks])
+  );
+}
+
     if (detect.price) lead.score = (lead.score || 0) + 2;
     if (detect.invest) lead.score = (lead.score || 0) + 3;
     if (detect.negotiation) lead.score = (lead.score || 0) + 2;
     if (detect.buy) lead.score = (lead.score || 0) + 6;
 
+    // classificação do lead
+if (lead.score >= 12) {
+  lead.rank = "comprador";
+} else if (lead.score >= 8) {
+  lead.rank = "quente";
+} else if (lead.score >= 4) {
+  lead.rank = "interessado";
+} else if (lead.score >= 2) {
+  lead.rank = "curioso";
+} else {
+  lead.rank = "frio";
+}
     // estágio mais inteligente
     if (detect.buy) {
       lead.stage = "fechamento";
@@ -1014,6 +1127,10 @@ Se fizer sentido para você, eu sigo agora com sua ficha.`
 
     lead.last_message = nowISO();
     await upsertLead(lead);
+
+    // preparar follow-up automático
+lead.followup = lead.followup || {};
+lead.followup.last_interaction = nowISO();
 
     const parts = reply.split("\n\n");
     for (const part of parts) {

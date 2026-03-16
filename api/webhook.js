@@ -15,6 +15,11 @@ const {
   mergeBuyerDataFromText,
  } = require("./_agent");
 
+const {
+  isAddressRequest,
+  sendAddress
+} = require("./_address");
+
 // =================================
 // LINKS FIXOS
 // =================================
@@ -677,11 +682,11 @@ module.exports = async (req, res) => {
     // =================================
     // PRIORIDADE MÁXIMA: ENDEREÇO
     // =================================
+    
     if (isAddressRequest(userText)) {
-      await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
-      await sendWhatsAppText(from, CASA_MAP_TEXT);
-      return res.status(200).json({ ok: true, route: "address" });
-    }
+  await sendAddress(sendWhatsAppText, from);
+  return res.status(200).json({ ok: true, route: "address" });
+}
 
     let lead = await getLeadByPhone(from);
 

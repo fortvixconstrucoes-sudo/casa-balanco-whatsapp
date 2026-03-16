@@ -13,8 +13,7 @@ const {
   buildPaymentDataMessage,
   buildMissingDataMessage,
   mergeBuyerDataFromText,
-  isAddressRequest
-} = require("./_agent");
+ } = require("./_agent");
 
 // =================================
 // LINKS FIXOS

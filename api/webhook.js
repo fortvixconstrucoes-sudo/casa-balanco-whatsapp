@@ -515,7 +515,45 @@ Assim fica mais fácil decidir.`;
 function buildNegotiationReply(userText, lead) {
   const t = normalizeText(userText);
   const paymentMode = lead?.purchase?.payment_mode || "";
+// =================================
+// DETECÇÃO DE SAUDAÇÃO
+// =================================
+if (
+  t === "oi" ||
+  t === "ola" ||
+  t === "olá" ||
+  t === "bom dia" ||
+  t === "boa tarde" ||
+  t === "boa noite"
+) {
+  const greeting = `Olá! Seja bem-vindo 😊
 
+Eu posso te mostrar como funciona a Casa Balanço do Mar em Prado.
+
+É uma casa de praia em modelo de multipropriedade onde você garante 2 semanas por ano para sua família.
+
+Quer que eu te mostre:
+
+1️⃣ fotos da casa  
+2️⃣ vídeo rápido  
+3️⃣ valores da fração`;
+
+  await sendWhatsAppText(from, greeting);
+
+  lead.history = clampHistory(
+    [
+      ...(lead.history || []),
+      { role: "assistant", content: greeting, at: nowISO() }
+    ],
+    30
+  );
+
+  lead.last_message = nowISO();
+  await upsertLead(lead);
+
+  return res.status(200).json({ ok: true, route: "greeting" });
+}
+  
 if (
 t.includes("a vista") ||
 t.includes("avista") ||

@@ -1058,7 +1058,6 @@ module.exports = {
   detectPurchaseIntent,
   detectDocument,
   detectMediaInterest,
-  isAddressRequest,
   buildFollowUp,
   buildRecoveryMessage,
   alertOwner,

@@ -12,7 +12,8 @@ const {
   buildContractFormText,
   buildPaymentDataMessage,
   buildMissingDataMessage,
-  mergeBuyerDataFromText
+  mergeBuyerDataFromText,
+  isAddressRequest
 } = require("./_agent");
 
 // =================================
@@ -40,53 +41,6 @@ const CASA_MAP_TEXT = `Localização no mapa:
 https://www.google.com/maps?q=-17.324118246682865,-39.22221224575318`;
 
 const FECHAMENTO_INTRO = `Perfeito! Vamos finalizar sua fração 😊`;
-
-// =================================
-// DETECTOR DEFINITIVO DE ENDEREÇO
-// =================================
-function normalizeAddressText(text = "") {
-  return String(text || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\w\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function isAddressQuestionRaw(text = "") {
-  const t = normalizeAddressText(text);
-
-  if (!t) return false;
-
-  return (
-    t === "endereco" ||
-    t === "qual endereco" ||
-    t === "tem endereco" ||
-    t === "me passa o endereco" ||
-    t === "me passa endereco" ||
-    t === "qual o endereco" ||
-    t === "localizacao" ||
-    t === "qual localizacao" ||
-    t === "tem localizacao" ||
-    t === "qual a localizacao" ||
-    t === "onde fica" ||
-    t === "qual bairro" ||
-    t === "bairro" ||
-    t === "mapa" ||
-    t === "local" ||
-    t.includes("endereco") ||
-    t.includes("localizacao") ||
-    t.includes("onde fica") ||
-    t.includes("qual bairro") ||
-    t.includes("mapa")
-  );
-}
-
-async function sendAddressDirect(to) {
-  await sendWhatsAppText(to, CASA_ADDRESS_TEXT);
-  await sendWhatsAppText(to, CASA_MAP_TEXT);
-}
 
 // =================================
 // DOWNLOAD DE ARQUIVO DO WHATSAPP
@@ -252,7 +206,9 @@ function applyManualFieldExtraction(lead, userText) {
   const rgLabel = txt.match(/\brg[:\s]*([0-9.\-xX]{5,20})/i);
   if (rgLabel && !lead.buyer.rg) lead.buyer.rg = rgLabel[1].trim();
 
-  const phoneMatch = txt.match(/(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?(?:9?\d{4}\-?\d{4})/);
+  const phoneMatch = txt.match(
+    /(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?(?:9?\d{4}\-?\d{4})/
+  );
   if (phoneMatch && !lead.buyer.phone) {
     lead.buyer.phone = phoneMatch[0].trim();
   }
@@ -270,11 +226,12 @@ function applyManualFieldExtraction(lead, userText) {
     lead.buyer.marital_status = "Divorciado(a)";
   }
 
+  // mantém memória da forma de pagamento sem forçar fechamento
   if (/a vista|avista/.test(lower)) {
     lead.purchase.payment_mode = "avista";
   } else if (/parcelado|parcelar|entrada/.test(lower)) {
     lead.purchase.payment_mode = "parcelado";
-    lead.purchase.entry_value = 7290;
+    if (!lead.purchase.entry_value) lead.purchase.entry_value = 7290;
 
     if (/36x/.test(lower)) {
       lead.purchase.installments = 36;
@@ -292,20 +249,102 @@ function applyManualFieldExtraction(lead, userText) {
     lead.buyer.phone = lead.phone;
   }
 
+  if (!lead.buyer.street) {
+    const addressLine = txt.match(
+      /\b(?:rua|avenida|av\.?|travessa|rodovia|estrada|alameda|loteamento|praça)\b[^\n]{8,140}/i
+    );
+    if (addressLine) {
+      lead.buyer.street = addressLine[0].trim();
+    }
+  }
+
+  const lines = txt
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    const l = normalizeText(line);
+
+    if ((l.startsWith("nome:") || l.startsWith("nome completo:")) && !lead.buyer.full_name) {
+      lead.buyer.full_name = line.split(":").slice(1).join(":").trim();
+    }
+
+    if (l.startsWith("profissao:") || l.startsWith("profissão:")) {
+      lead.buyer.profession = line.split(":").slice(1).join(":").trim();
+    }
+
+    if (l.startsWith("endereco:") || l.startsWith("endereço:")) {
+      lead.buyer.street = line.split(":").slice(1).join(":").trim();
+    }
+
+    if (l.startsWith("cidade:")) {
+      lead.buyer.city = line.split(":").slice(1).join(":").trim();
+    }
+
+    if (l.startsWith("estado:")) {
+      lead.buyer.state = line.split(":").slice(1).join(":").trim();
+    }
+
+    if (l.startsWith("telefone:") || l.startsWith("celular:")) {
+      lead.buyer.phone = line.split(":").slice(1).join(":").trim();
+    }
+
+    if (l.startsWith("email:") || l.startsWith("e-mail:")) {
+      lead.buyer.email = line.split(":").slice(1).join(":").trim();
+    }
+
+    if (l.startsWith("conjuge:") || l.startsWith("cônjuge:")) {
+      lead.spouse.full_name = line.split(":").slice(1).join(":").trim();
+    }
+
+    if (l.startsWith("estado civil do conjuge:") || l.startsWith("estado civil do cônjuge:")) {
+      lead.spouse.marital_status = line.split(":").slice(1).join(":").trim();
+    }
+
+    if (l.startsWith("cpf do conjuge:") || l.startsWith("cpf do cônjuge:")) {
+      lead.spouse.cpf = line.split(":").slice(1).join(":").trim();
+    }
+
+    if (l.startsWith("rg do conjuge:") || l.startsWith("rg do cônjuge:")) {
+      lead.spouse.rg = line.split(":").slice(1).join(":").trim();
+    }
+
+    if (l.startsWith("regime de bens:")) {
+      lead.spouse.property_regime = line.split(":").slice(1).join(":").trim();
+    }
+  }
+
+  if (
+    !lead.buyer.full_name &&
+    txt &&
+    txt.length <= 60 &&
+    !txt.includes("@") &&
+    !/\d{3}\.?\d{3}\.?\d{3}/.test(txt) &&
+    !/oi|ola|bom dia|boa tarde|boa noite/i.test(txt)
+  ) {
+    const words = txt.trim().split(/\s+/);
+    if (words.length >= 2 && words.length <= 5) {
+      lead.buyer.full_name = txt.trim();
+    }
+  }
+
   return lead;
 }
 
 // =================================
 // DETECÇÃO DE INTENÇÃO
 // =================================
-function detectIntent(t) {
-  const tx = normalizeText(t);
+function detectIntent(text = "") {
+  const tx = normalizeText(text);
 
   return {
     video:
-      /(^|\b)(video|tour)(\b|$)/.test(tx) ||
+      /(^|\b)(video|vídeo|tour)(\b|$)/.test(tx) ||
       tx.includes("tem video") ||
-      tx.includes("tem um video"),
+      tx.includes("tem vídeo") ||
+      tx.includes("tem um video") ||
+      tx.includes("tem um vídeo"),
 
     photos:
       /(^|\b)(foto|fotos|imagem|imagens)(\b|$)/.test(tx) ||
@@ -316,6 +355,7 @@ function detectIntent(t) {
 
     price:
       tx.includes("preco") ||
+      tx.includes("preço") ||
       tx.includes("valor") ||
       tx.includes("quanto custa"),
 
@@ -329,6 +369,23 @@ function detectIntent(t) {
       tx.includes("visitar") ||
       tx.includes("visita"),
 
+    // NEGOCIAÇÃO: não é fechamento
+    negotiation:
+      tx.includes("a vista") ||
+      tx.includes("avista") ||
+      tx.includes("parcelado") ||
+      tx.includes("parcelar") ||
+      tx.includes("entrada") ||
+      tx.includes("desconto") ||
+      tx.includes("beneficio") ||
+      tx.includes("benefício") ||
+      tx.includes("vantagem") ||
+      tx.includes("condicao") ||
+      tx.includes("condição") ||
+      tx.includes("melhor forma de pagamento") ||
+      tx.includes("custo total"),
+
+    // FECHAMENTO REAL
     buy:
       tx.includes("quero comprar") ||
       tx.includes("quero fechar") ||
@@ -338,9 +395,15 @@ function detectIntent(t) {
       tx.includes("como faco pra pagar") ||
       tx.includes("como faço pra pagar") ||
       tx.includes("contrato") ||
-      tx.includes("a vista") ||
-      tx.includes("avista") ||
-      tx.includes("parcelado"),
+      tx.includes("me manda a ficha") ||
+      tx.includes("me envie a ficha") ||
+      tx.includes("me manda o contrato") ||
+      tx.includes("me envie o contrato") ||
+      tx.includes("pode seguir") ||
+      tx.includes("pode prosseguir") ||
+      tx.includes("quero garantir") ||
+      tx.includes("vou pagar") ||
+      tx.includes("pode emitir"),
 
     fullMedia:
       tx.includes("me mostra tudo") ||
@@ -348,6 +411,73 @@ function detectIntent(t) {
       tx.includes("apresentacao completa") ||
       tx.includes("apresentação completa")
   };
+}
+
+// =================================
+// RESPOSTAS RÁPIDAS DE NEGOCIAÇÃO
+// =================================
+function buildNegotiationReply(userText, lead) {
+  const t = normalizeText(userText);
+  const paymentMode = lead?.purchase?.payment_mode || "";
+
+  if (
+    /a vista.*beneficio|a vista.*benefício|beneficio.*a vista|benefício.*a vista|vantagem.*a vista|desconto.*a vista/.test(
+      t
+    )
+  ) {
+    return `Sim 😊
+
+No pagamento à vista, você entra na condição mais enxuta do projeto, elimina parcelas futuras e já garante sua fração imediatamente.
+
+Para muita gente, a principal vantagem é travar o menor custo total agora e resolver tudo de forma mais estratégica.
+
+Quer que eu te compare o ganho prático do à vista em relação ao parcelado?`;
+  }
+
+  if (t.includes("tem desconto a vista") || t.includes("tem desconto à vista")) {
+    return `Hoje a condição promocional mais enxuta já é a do à vista 😊
+
+Ela foi pensada justamente para quem quer entrar com o menor custo total e garantir a fração de forma imediata.
+
+Se quiser, eu também posso te mostrar a diferença prática para o parcelado.`;
+  }
+
+  if (t.includes("compensa mais a vista") || t.includes("compensa mais à vista")) {
+    return `Depende do que pesa mais para você 😊
+
+Se o foco for menor custo total e resolver tudo agora, o à vista costuma ser a escolha mais estratégica.
+
+Se o foco for fluxo de caixa e entrada menor, o parcelado traz mais flexibilidade.`;
+  }
+
+  if (t.includes("parcelado")) {
+    return `Claro 😊
+
+Hoje temos estas condições de parcelamento:
+
+Entrada: R$ 7.290,00
+36x de R$ 1.600,00
+48x de R$ 1.200,00
+60x de R$ 960,00
+
+Se quiser, eu também posso te dizer qual opção costuma fazer mais sentido para o seu perfil.`;
+  }
+
+  if (
+    t.includes("a vista") ||
+    t.includes("avista") ||
+    paymentMode === "avista"
+  ) {
+    return `Perfeito 😊
+
+À vista você entra pelo menor custo total da operação, elimina parcelas futuras e já garante sua fração imediatamente.
+
+É a opção que normalmente faz mais sentido para quem quer decidir de forma mais estratégica e enxuta.
+
+Você quer que eu te mostre por que muitos clientes preferem o à vista?`;
+  }
+
+  return null;
 }
 
 // =================================
@@ -453,26 +583,25 @@ async function handleDirectClosing({ from, lead, t }) {
 
   const missingMsg = buildMissingDataMessage(lead);
 
-  if (
-    /quero pagar|como faco pra pagar|como faço pra pagar|contrato|quero fechar|quero comprar|reservar|a vista|avista|parcelado/.test(
-      t
-    )
-  ) {
-    if (missingMsg) {
-      await sendWhatsAppText(from, `${FECHAMENTO_INTRO}
+  const closingIntentRegex =
+    /quero pagar|como faco pra pagar|como faço pra pagar|contrato|quero fechar|quero comprar|vamos fechar|reservar|me manda a ficha|me envie a ficha|me manda o contrato|me envie o contrato|pode seguir|pode prosseguir|quero garantir|vou pagar|pode emitir/;
+
+  if (!closingIntentRegex.test(t)) {
+    return false;
+  }
+
+  if (missingMsg) {
+    await sendWhatsAppText(from, `${FECHAMENTO_INTRO}
 
 ${missingMsg}`);
 
-      lead.last_message = nowISO();
-      await upsertLead(lead);
-      return true;
-    }
-
-    await finalizeSaleFlow(from, lead);
+    lead.last_message = nowISO();
+    await upsertLead(lead);
     return true;
   }
 
-  return false;
+  await finalizeSaleFlow(from, lead);
+  return true;
 }
 
 async function handleDocumentDrivenProgress({ from, lead, sourceLabel }) {
@@ -505,12 +634,9 @@ ${missingMsg}`
 // =================================
 module.exports = async (req, res) => {
   try {
-    // HEALTHCHECK NO NAVEGADOR
-    if (req.method === "GET" && !req.query["hub.mode"]) {
-      return res.status(200).send("WEBHOOK ONLINE OK");
-    }
-
+    // ===============================
     // VERIFICAÇÃO META
+    // ===============================
     if (req.method === "GET") {
       const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
       const mode = req.query["hub.mode"];
@@ -532,7 +658,7 @@ module.exports = async (req, res) => {
     const incoming = extractIncoming(body);
 
     if (!incoming || !incoming.from) {
-      return res.status(200).json({ ok: true, ignored: true });
+      return res.status(200).json({ ok: true });
     }
 
     const {
@@ -550,11 +676,12 @@ module.exports = async (req, res) => {
     let sourceLabel = "";
 
     // =================================
-    // PRIORIDADE ABSOLUTA: ENDEREÇO
+    // PRIORIDADE MÁXIMA: ENDEREÇO
     // =================================
-    if (isAddressQuestionRaw(userText)) {
-      await sendAddressDirect(from);
-      return res.status(200).json({ ok: true, route: "address-top" });
+    if (isAddressRequest(userText)) {
+      await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
+      await sendWhatsAppText(from, CASA_MAP_TEXT);
+      return res.status(200).json({ ok: true, route: "address" });
     }
 
     let lead = await getLeadByPhone(from);
@@ -562,6 +689,7 @@ module.exports = async (req, res) => {
     if (!lead) {
       lead = {
         phone: from,
+        name: profileName || null,
         buyer: {},
         spouse: {},
         purchase: {},
@@ -583,7 +711,9 @@ module.exports = async (req, res) => {
       lead.name = profileName;
     }
 
+    // =================================
     // DOCUMENTO PDF
+    // =================================
     if (type === "document" && documentId) {
       const buffer = await downloadWhatsAppFile(documentId);
       const pdfText = await readPDF(buffer);
@@ -595,13 +725,21 @@ module.exports = async (req, res) => {
       sourceLabel = "documento";
     }
 
-    // IMAGEM - SEM OCR
+    // =================================
+    // IMAGEM
+    // REMOVIDO OCR/TESSERACT PARA NÃO QUEBRAR NO VERCEL
+    // =================================
     if (type === "image" && imageId) {
-      userText = text || "Cliente enviou imagem.";
-      sourceLabel = "imagem";
+      await sendWhatsAppText(
+        from,
+        "Recebi sua imagem 😊\n\nSe for ficha ou documento, pode me enviar em PDF ou escrever os dados aqui que eu preencho para você."
+      );
+      return res.status(200).json({ ok: true, route: "image-received" });
     }
 
+    // =================================
     // ÁUDIO
+    // =================================
     if (type === "audio" && audioId) {
       const buffer = await downloadWhatsAppFile(audioId);
       const transcript = await transcribeAudio(buffer, audioMimeType);
@@ -616,9 +754,12 @@ module.exports = async (req, res) => {
       sourceLabel = "áudio";
     }
 
+    // =================================
     // ENDEREÇO APÓS PDF / ÁUDIO
-    if (isAddressQuestionRaw(userText)) {
-      await sendAddressDirect(from);
+    // =================================
+    if (isAddressRequest(userText)) {
+      await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
+      await sendWhatsAppText(from, CASA_MAP_TEXT);
 
       lead.sent_map = true;
       lead.last_message = nowISO();
@@ -627,10 +768,13 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true, route: "address-after-media" });
     }
 
+    // =================================
+    // EXTRAÇÃO GERAL
+    // =================================
     lead = applyManualFieldExtraction(lead, userText);
 
     if (!userText || !userText.trim()) {
-      return res.status(200).json({ ok: true, ignored: "empty-message" });
+      return res.status(200).json({ ok: true, route: "empty-message" });
     }
 
     const t = normalizeText(userText);
@@ -638,12 +782,25 @@ module.exports = async (req, res) => {
 
     if (detect.price) lead.score = (lead.score || 0) + 2;
     if (detect.invest) lead.score = (lead.score || 0) + 3;
+    if (detect.negotiation) lead.score = (lead.score || 0) + 2;
     if (detect.buy) lead.score = (lead.score || 0) + 6;
 
-    if (lead.score >= 6) lead.stage = "fechamento";
-    else if (lead.score >= 3) lead.stage = "interessado";
-    else if (lead.score >= 1) lead.stage = "curioso";
+    // estágio mais inteligente
+    if (detect.buy) {
+      lead.stage = "fechamento";
+    } else if (detect.negotiation) {
+      lead.stage = "negociando";
+    } else if (lead.score >= 3) {
+      lead.stage = "interessado";
+    } else if (lead.score >= 1) {
+      lead.stage = "curioso";
+    } else {
+      lead.stage = lead.stage || "novo";
+    }
 
+    // =================================
+    // HISTÓRICO USER
+    // =================================
     lead.history = clampHistory(
       [
         ...(lead.history || []),
@@ -659,6 +816,9 @@ module.exports = async (req, res) => {
     lead.last_message = nowISO();
     lead = await upsertLead(lead);
 
+    // =================================
+    // FLUXO DIRETO DE DOCUMENTO / ÁUDIO
+    // =================================
     if (sourceLabel === "documento" || sourceLabel === "áudio") {
       const handledDocProgress = await handleDocumentDrivenProgress({
         from,
@@ -671,17 +831,56 @@ module.exports = async (req, res) => {
       }
     }
 
+    // =================================
+    // FLUXOS DIRETOS DE MÍDIA
+    // =================================
     const handledMedia = await handleDirectMediaIntent({ from, lead, detect });
     if (handledMedia) {
       return res.status(200).json({ ok: true, route: "media" });
     }
 
+    // =================================
+    // NEGOCIAÇÃO DIRETA
+    // =================================
+    if (detect.negotiation && !detect.buy) {
+      const negotiationReply = buildNegotiationReply(userText, lead);
+
+      if (negotiationReply) {
+        lead.history = clampHistory(
+          [
+            ...(lead.history || []),
+            { role: "assistant", content: negotiationReply, at: nowISO() }
+          ],
+          30
+        );
+
+        lead.last_message = nowISO();
+        await upsertLead(lead);
+
+        const parts = negotiationReply.split("\n\n");
+        for (const part of parts) {
+          if (part.trim()) {
+            await sendWhatsAppText(from, part.trim());
+          }
+        }
+
+        return res.status(200).json({ ok: true, route: "negotiation" });
+      }
+    }
+
+    // =================================
+    // FLUXO DIRETO DE FECHAMENTO
+    // =================================
     const handledClosing = await handleDirectClosing({ from, lead, t });
     if (handledClosing) {
       return res.status(200).json({ ok: true, route: "closing" });
     }
 
-    if ((lead.stage === "fechamento" || detect.buy) && !lead.proposal_sent) {
+    // =================================
+    // PROPOSTA AUTOMÁTICA
+    // Só quando houver sinal claro de compra
+    // =================================
+    if (detect.buy && !lead.proposal_sent) {
       await sendWhatsAppText(
         from,
         `Perfeito 😊
@@ -709,6 +908,9 @@ Se fizer sentido para você, eu sigo agora com sua ficha.`
       return res.status(200).json({ ok: true, route: "proposal" });
     }
 
+    // =================================
+    // IA CONSULTIVA
+    // =================================
     const reply = await generateReply({ lead, userText });
 
     if (/ficha preenchida|assine e me devolva/i.test(reply)) {
@@ -733,7 +935,6 @@ Se fizer sentido para você, eu sigo agora com sua ficha.`
     await upsertLead(lead);
 
     const parts = reply.split("\n\n");
-
     for (const part of parts) {
       if (part.trim()) {
         await sendWhatsAppText(from, part.trim());
@@ -743,6 +944,7 @@ Se fizer sentido para você, eu sigo agora com sua ficha.`
     return res.status(200).json({ ok: true, route: "ai" });
   } catch (err) {
     console.error("WEBHOOK ERROR:", err);
+
     return res.status(200).json({
       ok: false,
       error: err?.message

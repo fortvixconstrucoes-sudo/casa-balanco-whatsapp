@@ -11,9 +11,19 @@ module.exports = async (req, res) => {
       if (mode === "subscribe" && token === verifyToken) {
         return res.status(200).send(challenge);
       }
+      
+if (req.method === "GET") {
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
 
-      return res.status(403).send("Forbidden");
-    }
+  if (mode === "subscribe" && token === verifyToken) {
+    return res.status(200).send(challenge);
+  }
+
+  return res.status(200).send("WEBHOOK ONLINE OK");
+}
 
     if (req.method !== "POST") {
       return res.status(405).json({ ok: false });

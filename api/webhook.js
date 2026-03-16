@@ -1,4 +1,3 @@
-
 const fetch = global.fetch || require("node-fetch");
 const FormData = require("form-data");
 const pdf = require("pdf-parse");

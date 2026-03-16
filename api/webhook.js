@@ -523,22 +523,58 @@ module.exports = async (req, res) => {
     }
 
     const body = req.body || {};
-    const incoming = extractIncoming(body);
+const incoming = extractIncoming(body);
 
-    if (!incoming || !incoming.from) {
-      return res.status(200).json({ ok: true, ignored: true });
-    }
+if (!incoming || !incoming.from) {
+  return res.status(200).json({ ok: true, ignored: true });
+}
 
-    const {
-      from,
-      type,
-      text,
-      documentId,
-      imageId,
-      audioId,
-      audioMimeType,
-      profileName
-    } = incoming;
+const {
+  from,
+  type,
+  text,
+  documentId,
+  imageId,
+  audioId,
+  audioMimeType,
+  profileName
+} = incoming;
+
+const rawText = String(text || "").trim();
+const normalizedTop = rawText
+  .toLowerCase()
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .replace(/[^\w\s]/g, " ")
+  .replace(/\s+/g, " ")
+  .trim();
+
+// TESTE BRUTO E INCONFUNDÍVEL
+if (
+  normalizedTop === "endereco" ||
+  normalizedTop === "qual endereco" ||
+  normalizedTop === "localizacao" ||
+  normalizedTop === "qual localizacao" ||
+  normalizedTop === "onde fica" ||
+  normalizedTop === "mapa" ||
+  normalizedTop === "bairro" ||
+  normalizedTop === "local" ||
+  normalizedTop.includes("endereco") ||
+  normalizedTop.includes("localizacao") ||
+  normalizedTop.includes("onde fica") ||
+  normalizedTop.includes("mapa")
+) {
+  await sendWhatsAppText(from, "TESTE ENDERECO OK");
+  await sendWhatsAppText(from, "Rua T17, Quadra 26, Lote 02B, Bairro Basevi, Prado – Bahia, CEP 45980-000");
+  await sendWhatsAppText(from, "https://www.google.com/maps?q=-17.324118246682865,-39.22221224575318");
+
+  return res.status(200).json({
+    ok: true,
+    route: "address-test-direct",
+    received_text: rawText,
+    normalized_text: normalizedTop
+  });
+}
 
     let userText = text || "";
     let sourceLabel = "";

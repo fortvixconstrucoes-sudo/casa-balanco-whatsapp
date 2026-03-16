@@ -357,11 +357,14 @@ function detectIntent(text = "") {
       tx.includes("manda foto") ||
       tx.includes("manda fotos"),
 
-    price:
-      tx.includes("preco") ||
-      tx.includes("preço") ||
-      tx.includes("valor") ||
-      tx.includes("quanto custa"),
+  price:
+  tx.includes("preco") ||
+  tx.includes("preço") ||
+  tx.includes("valor") ||
+  tx.includes("quanto custa") ||
+  tx.includes("qual valor") ||
+  tx.includes("valor da fracao") ||
+  tx.includes("valor da fração"),
 
     invest:
       tx.includes("investir") ||
@@ -374,20 +377,22 @@ function detectIntent(text = "") {
       tx.includes("visita"),
 
     // NEGOCIAÇÃO: não é fechamento
-    negotiation:
-      tx.includes("a vista") ||
-      tx.includes("avista") ||
-      tx.includes("parcelado") ||
-      tx.includes("parcelar") ||
-      tx.includes("entrada") ||
-      tx.includes("desconto") ||
-      tx.includes("beneficio") ||
-      tx.includes("benefício") ||
-      tx.includes("vantagem") ||
-      tx.includes("condicao") ||
-      tx.includes("condição") ||
-      tx.includes("melhor forma de pagamento") ||
-      tx.includes("custo total"),
+  negotiation:
+  tx.includes("a vista") ||
+  tx.includes("avista") ||
+  tx.includes("parcelado") ||
+  tx.includes("parcelar") ||
+  tx.includes("entrada") ||
+  tx.includes("desconto") ||
+  tx.includes("beneficio") ||
+  tx.includes("benefício") ||
+  tx.includes("vantagem") ||
+  tx.includes("condicao") ||
+  tx.includes("condição") ||
+  tx.includes("melhor forma de pagamento") ||
+  tx.includes("custo total") ||
+  tx.includes("valor") ||
+  tx.includes("qual valor"),
 
     // FECHAMENTO REAL
     buy:

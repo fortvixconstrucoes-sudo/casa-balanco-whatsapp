@@ -514,18 +514,7 @@ Assim fica mais fácil decidir.`;
 // =================================
 function buildNegotiationReply(userText, lead) {
   const t = normalizeText(userText);
-  const paymentMode = lead?.purchase?.payment_mode || "";
-// =================================
-// DETECÇÃO DE SAUDAÇÃO
-// =================================
-if (
-  t === "oi" ||
-  t === "ola" ||
-  t === "olá" ||
-  t === "bom dia" ||
-  t === "boa tarde" ||
-  t === "boa noite"
-) {
+  const paymentMode = lead?.purchase?.
   const greeting = `Olá! Seja bem-vindo 😊
 
 Eu posso te mostrar como funciona a Casa Balanço do Mar em Prado.
@@ -981,6 +970,44 @@ module.exports = async (req, res) => {
     }
 
     const t = normalizeText(userText);
+    // =================================
+// DETECÇÃO DE SAUDAÇÃO
+// =================================
+if (
+  t === "oi" ||
+  t === "ola" ||
+  t === "olá" ||
+  t === "opa" ||
+  t === "bom dia" ||
+  t === "boa tarde" ||
+  t === "boa noite"
+) {
+  const greeting = `Olá! Seja bem-vindo 😊
+
+Eu posso te mostrar rapidamente:
+
+• fotos da casa  
+• vídeo da casa  
+• valor da fração  
+• localização em Prado
+
+O que você gostaria de ver primeiro?`;
+
+  await sendWhatsAppText(from, greeting);
+
+  lead.history = clampHistory(
+    [
+      ...(lead.history || []),
+      { role: "assistant", content: greeting, at: nowISO() }
+    ],
+    30
+  );
+
+  lead.last_message = nowISO();
+  await upsertLead(lead);
+
+  return res.status(200).json({ ok: true, route: "greeting" });
+}
     const detect = detectIntent(t);
 
     // verificar objeção do cliente

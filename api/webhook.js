@@ -1,11 +1,3 @@
-O erro está no fato de que a condição de endereço não está sendo executada na prática, então vou te dar a solução mais forte possível:
-
-tirar a decisão de endereço de qualquer fluxo da IA, Supabase, PDF, áudio, stage, detect, prompt e agent.
-O webhook vai responder o endereço antes de qualquer outra coisa, com um bloco mínimo e isolado.
-
-O seu problema agora não é prompt. É roteamento de execução.
-
-Use este api/webhook.js completo, enxuto e travado para endereço no topo:
 
 const fetch = global.fetch || require("node-fetch");
 const FormData = require("form-data");

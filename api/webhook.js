@@ -377,7 +377,7 @@ function detectIntent(text = "") {
       tx.includes("visita"),
 
     // NEGOCIAÇÃO: não é fechamento
-  negotiation:
+negotiation:
   tx.includes("a vista") ||
   tx.includes("avista") ||
   tx.includes("parcelado") ||
@@ -392,6 +392,9 @@ function detectIntent(text = "") {
   tx.includes("melhor forma de pagamento") ||
   tx.includes("custo total") ||
   tx.includes("valor") ||
+  tx.includes("preco") ||
+  tx.includes("preço") ||
+  tx.includes("quanto custa") ||
   tx.includes("qual valor"),
 
     // FECHAMENTO REAL
@@ -429,20 +432,89 @@ function buildNegotiationReply(userText, lead) {
   const t = normalizeText(userText);
   const paymentMode = lead?.purchase?.payment_mode || "";
 
-  if (
-    /a vista.*beneficio|a vista.*benefício|beneficio.*a vista|benefício.*a vista|vantagem.*a vista|desconto.*a vista/.test(
-      t
-    )
-  ) {
-    return `Sim 😊
+if (
+t.includes("a vista") ||
+t.includes("avista") ||
+t.includes("desconto") ||
+t.includes("beneficio") ||
+t.includes("benefício") ||
+t.includes("vantagem") ||
+t.includes("valor") ||
+t.includes("preco") ||
+t.includes("preço")
+)
+    return `Perfeito 😊
 
-No pagamento à vista, você entra na condição mais enxuta do projeto, elimina parcelas futuras e já garante sua fração imediatamente.
+Hoje a fração da Casa Balanço do Mar está nesta condição:
 
-Para muita gente, a principal vantagem é travar o menor custo total agora e resolver tudo de forma mais estratégica.
+À vista: R$ 59.890
 
-Quer que eu te compare o ganho prático do à vista em relação ao parcelado?`;
-  }
+Ou parcelado com entrada de R$ 7.290.
 
+Muita gente compara com alugar casa de praia.
+
+Mas aqui você garante duas semanas por ano em uma casa completa para sua família.
+
+Quem garante à vista entra em vantagens exclusivas:
+
+✔ desconto imediato de R$ 6.000  
+✔ prioridade na escolha das semanas  
+✔ garantia da fração antes de novas valorizações  
+
+Além disso temos um bônus especial:
+
+✔ 2 diárias extras em finais de semana  
+válidas até setembro de 2026.
+
+Outro ponto importante:
+
+A casa possui apenas 26 frações.
+
+Quem entra primeiro tem mais liberdade para escolher suas semanas no calendário anual.
+
+A maioria dos clientes decide entre entrar à vista ou parcelar para diluir o investimento.
+
+Qual dessas duas opções faria mais sentido para você?`;
+
+  if (t.includes("parcelado") || paymentMode === "parcelado") {
+  return `Perfeito 😊
+
+Hoje temos três formas de parcelamento:
+
+Entrada: R$ 7.290
+
+36x de R$ 1.600  
+48x de R$ 1.200  
+60x de R$ 960  
+
+Qual dessas parcelas ficaria mais confortável para você?`;
+}
+  
+if (
+  t.includes("acho que sim") ||
+  t.includes("quero") ||
+  t.includes("vou fechar") ||
+  t.includes("vamos fechar") ||
+  t.includes("vou pegar") ||
+  t.includes("vou comprar")
+) {
+  return `Perfeito 😊
+
+Então vamos garantir sua fração.
+
+Agora preciso apenas de alguns dados para preencher sua ficha de reserva.
+
+Assim que eu montar, te envio para conferência e assinatura.
+
+Pode me enviar:
+
+• nome completo  
+• CPF  
+• RG  
+• data de nascimento  
+• profissão  
+• endereço completo`;
+}
   if (t.includes("tem desconto a vista") || t.includes("tem desconto à vista")) {
     return `Hoje a condição promocional mais enxuta já é a do à vista 😊
 

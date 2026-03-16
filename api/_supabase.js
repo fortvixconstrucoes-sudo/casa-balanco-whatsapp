@@ -1,69 +1,58 @@
 const { createClient } = require("@supabase/supabase-js");
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+// Aceita tanto os nomes novos quanto os antigos
+const SUPABASE_URL =
+  process.env.SUPABASE_URL ||
+  process.env.URL_SUPABASE ||
+  "";
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY/ANON_KEY");
+const SUPABASE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.ANON_SECRET ||
+  "";
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  throw new Error("Missing SUPABASE_URL/URL_SUPABASE or SUPABASE_SERVICE_ROLE_KEY/SUPABASE_ANON_KEY");
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// =================================
-// NORMALIZA TELEFONE
-// =================================
-function normalizePhone(phone = "") {
-  return String(phone).replace(/\D/g, "");
-}
-
-// =================================
-// BUSCAR LEAD POR TELEFONE
-// =================================
 async function getLeadByPhone(phone) {
-  const cleanPhone = normalizePhone(phone);
+  if (!phone) return null;
 
   const { data, error } = await supabase
     .from("leads")
     .select("*")
-    .eq("phone", cleanPhone)
+    .eq("phone", phone)
     .maybeSingle();
 
   if (error) {
-    console.error("SUPABASE getLeadByPhone ERROR:", error.message);
+    console.error("getLeadByPhone error:", error.message);
     return null;
   }
 
   return data || null;
 }
 
-// =================================
-// CRIAR OU ATUALIZAR LEAD
-// =================================
 async function upsertLead(lead) {
-  if (!lead || !lead.phone) {
-    throw new Error("Lead phone is required");
+  if (!lead?.phone) {
+    throw new Error("Lead sem phone para upsert");
   }
 
   const payload = {
     ...lead,
-    phone: normalizePhone(lead.phone),
-    buyer: lead.buyer || {},
-    spouse: lead.spouse || {},
-    purchase: lead.purchase || {},
-    history: Array.isArray(lead.history) ? lead.history : [],
     updated_at: new Date().toISOString()
   };
 
   const { data, error } = await supabase
     .from("leads")
-    .upsert(payload, {
-      onConflict: "phone"
-    })
+    .upsert(payload, { onConflict: "phone" })
     .select()
     .single();
 
   if (error) {
-    console.error("SUPABASE upsertLead ERROR:", error.message);
+    console.error("upsertLead error:", error.message);
     throw error;
   }
 
@@ -72,7 +61,6 @@ async function upsertLead(lead) {
 
 module.exports = {
   supabase,
-  normalizePhone,
   getLeadByPhone,
   upsertLead
 };

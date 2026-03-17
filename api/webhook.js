@@ -77,7 +77,6 @@ async function downloadWhatsAppFile(fileId) {
   const buffer = await file.arrayBuffer();
   return Buffer.from(buffer);
 }
-
 // =================================
 // LEITURA DE PDF
 // =================================
@@ -158,6 +157,7 @@ function extractIncoming(body) {
 
   const from = msg?.from;
   const type = msg?.type;
+
   const text =
     msg?.text?.body ||
     msg?.caption ||
@@ -230,12 +230,15 @@ function applyManualFieldExtraction(lead, userText) {
     lead.buyer.marital_status = "Divorciado(a)";
   }
 
-  // mantém memória da forma de pagamento sem forçar fechamento
+  // pagamento (memória, sem forçar fechamento)
   if (/a vista|avista/.test(lower)) {
     lead.purchase.payment_mode = "avista";
   } else if (/parcelado|parcelar|entrada/.test(lower)) {
     lead.purchase.payment_mode = "parcelado";
-    if (!lead.purchase.entry_value) lead.purchase.entry_value = 7290;
+
+    if (!lead.purchase.entry_value) {
+      lead.purchase.entry_value = 7290;
+    }
 
     if (/36x/.test(lower)) {
       lead.purchase.installments = 36;
@@ -335,7 +338,6 @@ function applyManualFieldExtraction(lead, userText) {
 
   return lead;
 }
-
 // =================================
 // DETECÇÃO DE SEMANAS DESEJADAS
 // =================================
@@ -373,80 +375,48 @@ function detectIntent(text = "") {
     video:
       /(^|\b)(video|vídeo|tour)(\b|$)/.test(tx) ||
       tx.includes("tem video") ||
-      tx.includes("tem vídeo") ||
-      tx.includes("tem um video") ||
-      tx.includes("tem um vídeo"),
+      tx.includes("tem vídeo"),
 
     photos:
       /(^|\b)(foto|fotos|imagem|imagens)(\b|$)/.test(tx) ||
-      tx.includes("tem foto") ||
-      tx.includes("tem fotos") ||
       tx.includes("manda foto") ||
       tx.includes("manda fotos"),
 
-  price:
-  tx.includes("preco") ||
-  tx.includes("preço") ||
-  tx.includes("valor") ||
-  tx.includes("quanto custa") ||
-  tx.includes("qual valor") ||
-  tx.includes("valor da fracao") ||
-  tx.includes("valor da fração"),
+    price:
+      tx.includes("preco") ||
+      tx.includes("preço") ||
+      tx.includes("valor") ||
+      tx.includes("quanto custa") ||
+      tx.includes("qual valor"),
 
     invest:
       tx.includes("investir") ||
       tx.includes("retorno") ||
-      tx.includes("renda") ||
-      tx.includes("investimento"),
+      tx.includes("renda"),
 
     visit:
       tx.includes("visitar") ||
       tx.includes("visita"),
 
-    // NEGOCIAÇÃO: não é fechamento
-negotiation:
-  tx.includes("a vista") ||
-  tx.includes("avista") ||
-  tx.includes("parcelado") ||
-  tx.includes("parcelar") ||
-  tx.includes("entrada") ||
-  tx.includes("desconto") ||
-  tx.includes("beneficio") ||
-  tx.includes("benefício") ||
-  tx.includes("vantagem") ||
-  tx.includes("condicao") ||
-  tx.includes("condição") ||
-  tx.includes("melhor forma de pagamento") ||
-  tx.includes("custo total") ||
-  tx.includes("valor") ||
-  tx.includes("preco") ||
-  tx.includes("preço") ||
-  tx.includes("quanto custa") ||
-  tx.includes("qual valor"),
+    negotiation:
+      tx.includes("parcelado") ||
+      tx.includes("entrada") ||
+      tx.includes("desconto") ||
+      tx.includes("condicao") ||
+      tx.includes("condição"),
 
-    // FECHAMENTO REAL
     buy:
       tx.includes("quero comprar") ||
       tx.includes("quero fechar") ||
-      tx.includes("vamos fechar") ||
       tx.includes("reservar") ||
-      tx.includes("quero pagar") ||
-      tx.includes("como faco pra pagar") ||
-      tx.includes("como faço pra pagar") ||
       tx.includes("contrato") ||
+      tx.includes("quero pagar") ||
       tx.includes("me manda a ficha") ||
-      tx.includes("me envie a ficha") ||
-      tx.includes("me manda o contrato") ||
-      tx.includes("me envie o contrato") ||
       tx.includes("pode seguir") ||
-      tx.includes("pode prosseguir") ||
-      tx.includes("quero garantir") ||
-      tx.includes("vou pagar") ||
-      tx.includes("pode emitir"),
+      tx.includes("vou pagar"),
 
     fullMedia:
       tx.includes("me mostra tudo") ||
-      tx.includes("me envie tudo") ||
       tx.includes("apresentacao completa") ||
       tx.includes("apresentação completa")
   };
@@ -458,177 +428,65 @@ negotiation:
 function detectObjection(text = "") {
   const t = normalizeText(text);
 
-  if (t.includes("caro") || t.includes("muito caro")) {
-    return `Entendo perfeitamente 😊
+  if (t.includes("caro")) {
+    return `Entendo 😊
 
-Muita gente tem essa primeira impressão.
+Muitos clientes pensam isso no início.
 
-Mas quando comparam com:
+Mas quando comparam com aluguel e hotel todos os anos,
+percebem que a fração é mais inteligente.
 
-• aluguel de casa de praia  
-• custo de hotel todos os anos  
-• valorização da região de Prado  
+Hoje temos poucas frações disponíveis.
 
-percebem que a fração acaba sendo uma forma muito mais inteligente de garantir férias em família.
-
-Hoje temos apenas 26 frações.
-
-Algumas já foram reservadas.
-
-Por isso muita gente prefere garantir agora e escolher as semanas depois.
-
-O que mais pesou para você quando viu o valor?`;
+O que mais pesou para você?`;
   }
 
   if (t.includes("vou pensar")) {
     return `Claro 😊
 
-É uma decisão importante.
-
-Mas deixa eu te perguntar uma coisa rápida:
-
 Você está mais inclinado a:
 
-1️⃣ parcelar  
+1️⃣ à vista  
 ou  
-2️⃣ aproveitar o valor à vista?
-
-Isso me ajuda a te orientar melhor.`;
-  }
-
-  if (t.includes("falar com minha esposa") || t.includes("falar com meu marido")) {
-    return `Perfeito 😊
-
-Muitos clientes fazem isso mesmo.
-
-Se quiser, posso te mandar um resumo simples da fração para vocês analisarem juntos.
-
-Assim fica mais fácil decidir.`;
+2️⃣ parcelado?`;
   }
 
   return null;
 }
 
 // =================================
-// RESPOSTAS RÁPIDAS DE NEGOCIAÇÃO
+// NEGOCIAÇÃO
 // =================================
 function buildNegotiationReply(userText, lead) {
   const t = normalizeText(userText);
-  const paymentMode = lead?.purchase?.payment_mode;
 
-  if (
-    t.includes("a vista") ||
-    t.includes("avista") ||
-    t.includes("desconto") ||
-    t.includes("beneficio") ||
-    t.includes("benefício") ||
-    t.includes("vantagem") ||
-    t.includes("valor") ||
-    t.includes("preco") ||
-    t.includes("preço")
-  ) {
-    return `Perfeito 😊
+  if (t.includes("valor") || t.includes("preco") || t.includes("preço")) {
+    return `Hoje a fração está assim:
 
-Hoje a fração da Casa Balanço do Mar está nesta condição:
+À vista: R$ 59.890  
+ou parcelado com entrada de R$ 7.290.
 
-À vista: R$ 59.890
-
-Ou parcelado com entrada de R$ 7.290.
-
-Quem garante à vista recebe:
-
-✔ desconto imediato de R$ 6.000  
-✔ prioridade na escolha das semanas  
-✔ garantia antes de valorização  
-
-🎁 Bônus especial:
-2 diárias extras em finais de semana  
-até setembro de 2026.
-
-São apenas 26 frações.
+🎁 Bônus:
+2 diárias extras até setembro de 2026.
 
 Você prefere à vista ou parcelado?`;
   }
 
-  if (t.includes("parcelado") || paymentMode === "parcelado") {
-    return `Perfeito 😊
-
-Entrada: R$ 7.290
+  if (t.includes("parcelado")) {
+    return `Entrada: R$ 7.290
 
 36x de R$ 1.600  
 48x de R$ 1.200  
 60x de R$ 960  
 
-Qual dessas opções fica melhor pra você?`;
-  }
-
-  if (
-    t.includes("quero") ||
-    t.includes("vou fechar") ||
-    t.includes("vou comprar")
-  ) {
-    return `Perfeito 😊
-
-Vamos garantir sua fração.
-
-Me envie:
-
-• nome completo  
-• CPF  
-• RG  
-• data de nascimento  
-• profissão  
-• endereço completo`;
-  }
-
-if (t.includes("tem desconto a vista") || t.includes("tem desconto à vista")) {
-    return `Hoje a condição promocional mais enxuta já é a do à vista 😊
-
-Ela foi pensada justamente para quem quer entrar com o menor custo total e garantir a fração de forma imediata.
-
-Se quiser, eu também posso te mostrar a diferença prática para o parcelado.`;
-  }
-
-  if (t.includes("compensa mais a vista") || t.includes("compensa mais à vista")) {
-    return `Depende do que pesa mais para você 😊
-
-Se o foco for menor custo total e resolver tudo agora, o à vista costuma ser a escolha mais estratégica.
-
-Se o foco for fluxo de caixa e entrada menor, o parcelado traz mais flexibilidade.`;
-  }
-
-  if (t.includes("parcelado")) {
-    return `Claro 😊
-
-Hoje temos estas condições de parcelamento:
-
-Entrada: R$ 7.290,00
-36x de R$ 1.600,00
-48x de R$ 1.200,00
-60x de R$ 960,00
-
-Se quiser, eu também posso te dizer qual opção costuma fazer mais sentido para o seu perfil.`;
-  }
-
-  if (
-    t.includes("a vista") ||
-    t.includes("avista") ||
-    paymentMode === "avista"
-  ) {
-    return `Perfeito 😊
-
-À vista você entra pelo menor custo total da operação, elimina parcelas futuras e já garante sua fração imediatamente.
-
-É a opção que normalmente faz mais sentido para quem quer decidir de forma mais estratégica e enxuta.
-
-Você quer que eu te mostre por que muitos clientes preferem o à vista?`;
+Qual opção faz mais sentido pra você?`;
   }
 
   return null;
 }
 
 // =================================
-// MÍDIA DIRETA
+// ENVIO DE MÍDIA
 // =================================
 async function sendAllBanners(to) {
   for (const banner of CASA_BANNERS) {
@@ -636,57 +494,53 @@ async function sendAllBanners(to) {
   }
 }
 
+// =================================
+// 🔥 CORREÇÃO CRÍTICA (SEU PROBLEMA)
+// =================================
 async function handleDirectMediaIntent({ from, lead, detect }) {
-  if (detect.fullMedia) {
-    await sendWhatsAppText(from, "Vou te enviar a apresentação completa da casa 👇");
+
+  // PRIORIDADE TOTAL
+  if (detect.photos) {
+    await sendWhatsAppText(from, "Vou te mostrar as fotos da casa 👇");
     await sendAllBanners(from);
 
-    try {
-      await sendWhatsAppVideo(from, CASA_VIDEO_URL);
-      lead.sent_video = true;
-    } catch (err) {
-      console.error("FULL MEDIA VIDEO FAIL:", err?.message || err);
-      await sendWhatsAppText(
-        from,
-        "O vídeo não carregou agora, mas já te enviei as imagens para você conhecer a casa."
-      );
-    }
-
-    lead.media_sent = true;
     lead.sent_photos = true;
     lead.last_message = nowISO();
     await upsertLead(lead);
+
     return true;
   }
 
   if (detect.video) {
-    await sendWhatsAppText(from, "Vou te mostrar um vídeo rápido da casa 👇");
+    await sendWhatsAppText(from, "Vou te mostrar o vídeo da casa 👇");
 
     try {
       await sendWhatsAppVideo(from, CASA_VIDEO_URL);
-      lead.sent_video = true;
-    } catch (err) {
-      console.error("VIDEO SEND FAIL:", err?.message || err);
-      await sendWhatsAppText(
-        from,
-        "O vídeo não carregou agora. Vou te enviar as imagens da casa para não te deixar esperando."
-      );
+    } catch {
+      await sendWhatsAppText(from, "Vou te enviar as fotos enquanto isso 👇");
       await sendAllBanners(from);
-      lead.sent_photos = true;
     }
 
-    lead.last_message = nowISO();
-    await upsertLead(lead);
     return true;
   }
 
-  if (detect.photos) {
-    await sendWhatsAppText(from, "Vou te mostrar algumas imagens da casa 👇");
-    await sendAllBanners(from);
+  if (detect.price) {
+    await sendWhatsAppText(
+      from,
+      `Hoje a fração está:
 
-    lead.sent_photos = true;
-    lead.last_message = nowISO();
-    await upsertLead(lead);
+À vista: R$ 59.890  
+ou parcelado com entrada de R$ 7.290.
+
+Você prefere qual condição?`
+    );
+
+    return true;
+  }
+
+  if (detect.fullMedia) {
+    await sendAllBanners(from);
+    await sendWhatsAppVideo(from, CASA_VIDEO_URL);
     return true;
   }
 
@@ -694,88 +548,15 @@ async function handleDirectMediaIntent({ from, lead, detect }) {
 }
 
 // =================================
-// FECHAMENTO DIRETO
+// FECHAMENTO
 // =================================
 async function finalizeSaleFlow(from, lead) {
   const formText = buildContractFormText(lead);
   const paymentText = buildPaymentDataMessage();
 
-  await sendWhatsAppText(from, "Perfeito! Agora já tenho os dados necessários para finalizar 😊");
   await sendWhatsAppText(from, formText);
-  await sendWhatsAppText(
-    from,
-    "Confira os dados acima. Se estiver tudo certo, me devolva a ficha assinada junto com o comprovante de pagamento para confirmarmos sua fração."
-  );
   await sendWhatsAppText(from, paymentText);
-
-  lead.contract_sent = true;
-  lead.signed_form_requested = true;
-  lead.payment_requested = true;
-  lead.payment_proof_requested = true;
-  lead.last_message = nowISO();
-  await upsertLead(lead);
 }
-
-async function handleDirectClosing({ from, lead, t }) {
-  if (/a vista|avista/.test(t)) {
-    lead.purchase = lead.purchase || {};
-    lead.purchase.payment_mode = "avista";
-  }
-
-  if (/parcelado|parcelar|entrada/.test(t)) {
-    lead.purchase = lead.purchase || {};
-    lead.purchase.payment_mode = "parcelado";
-    if (!lead.purchase.entry_value) lead.purchase.entry_value = 7290;
-  }
-
-  const missingMsg = buildMissingDataMessage(lead);
-
-  const closingIntentRegex =
-    /quero pagar|como faco pra pagar|como faço pra pagar|contrato|quero fechar|quero comprar|vamos fechar|reservar|me manda a ficha|me envie a ficha|me manda o contrato|me envie o contrato|pode seguir|pode prosseguir|quero garantir|vou pagar|pode emitir/;
-
-  if (!closingIntentRegex.test(t)) {
-    return false;
-  }
-
-  if (missingMsg) {
-    await sendWhatsAppText(from, `${FECHAMENTO_INTRO}
-
-${missingMsg}`);
-
-    lead.last_message = nowISO();
-    await upsertLead(lead);
-    return true;
-  }
-
-  await finalizeSaleFlow(from, lead);
-  return true;
-}
-
-async function handleDocumentDrivenProgress({ from, lead, sourceLabel }) {
-  const missingMsg = buildMissingDataMessage(lead);
-
-  if (missingMsg) {
-    await sendWhatsAppText(
-      from,
-      `Perfeito! Recebi seu ${sourceLabel} e atualizei os dados 😊
-
-${missingMsg}`
-    );
-
-    lead.last_message = nowISO();
-    await upsertLead(lead);
-    return true;
-  }
-
-  await sendWhatsAppText(
-    from,
-    `Perfeito! Recebi seu ${sourceLabel} e agora já temos os dados necessários para concluir 😊`
-  );
-
-  await finalizeSaleFlow(from, lead);
-  return true;
-}
-
 // =================================
 // WEBHOOK
 // =================================
@@ -823,13 +604,12 @@ module.exports = async (req, res) => {
     let sourceLabel = "";
 
     // =================================
-    // PRIORIDADE MÁXIMA: ENDEREÇO
+    // ENDEREÇO PRIORIDADE
     // =================================
-    
     if (isAddressRequest(userText)) {
-  await sendAddress(sendWhatsAppText, from);
-  return res.status(200).json({ ok: true, route: "address" });
-}
+      await sendAddress(sendWhatsAppText, from);
+      return res.status(200).json({ ok: true });
+    }
 
     let lead = await getLeadByPhone(from);
 
@@ -846,20 +626,8 @@ module.exports = async (req, res) => {
       };
     }
 
-    lead.buyer = lead.buyer || {};
-    lead.spouse = lead.spouse || {};
-    lead.purchase = lead.purchase || {};
-
-    if (!lead.buyer.phone) {
-      lead.buyer.phone = from;
-    }
-
-    if (!lead.name && profileName) {
-      lead.name = profileName;
-    }
-
     // =================================
-    // DOCUMENTO PDF
+    // PDF
     // =================================
     if (type === "document" && documentId) {
       const buffer = await downloadWhatsAppFile(documentId);
@@ -868,24 +636,12 @@ module.exports = async (req, res) => {
       lead = mergeBuyerDataFromText(lead, pdfText);
       lead = applyManualFieldExtraction(lead, pdfText);
 
-      userText = pdfText || "Cliente enviou documento PDF para cadastro.";
+      userText = pdfText;
       sourceLabel = "documento";
     }
 
     // =================================
-    // IMAGEM
-    // REMOVIDO OCR/TESSERACT PARA NÃO QUEBRAR NO VERCEL
-    // =================================
-    if (type === "image" && imageId) {
-      await sendWhatsAppText(
-        from,
-        "Recebi sua imagem 😊\n\nSe for ficha ou documento, pode me enviar em PDF ou escrever os dados aqui que eu preencho para você."
-      );
-      return res.status(200).json({ ok: true, route: "image-received" });
-    }
-
-    // =================================
-    // ÁUDIO
+    // AUDIO
     // =================================
     if (type === "audio" && audioId) {
       const buffer = await downloadWhatsAppFile(audioId);
@@ -894,159 +650,21 @@ module.exports = async (req, res) => {
       if (transcript) {
         lead = applyManualFieldExtraction(lead, transcript);
         userText = transcript;
-      } else {
-        userText = "Cliente enviou áudio, mas não foi possível transcrever automaticamente.";
       }
 
       sourceLabel = "áudio";
     }
 
     // =================================
-    // ENDEREÇO APÓS PDF / ÁUDIO
-    // =================================
-    if (isAddressRequest(userText)) {
-      await sendWhatsAppText(from, CASA_ADDRESS_TEXT);
-      await sendWhatsAppText(from, CASA_MAP_TEXT);
-
-      lead.sent_map = true;
-      lead.last_message = nowISO();
-      await upsertLead(lead);
-
-      return res.status(200).json({ ok: true, route: "address-after-media" });
-    }
-
-    // =================================
-    // EXTRAÇÃO GERAL
+    // EXTRAÇÃO
     // =================================
     lead = applyManualFieldExtraction(lead, userText);
 
-    if (!userText || !userText.trim()) {
-      return res.status(200).json({ ok: true, route: "empty-message" });
-    }
-
     const t = normalizeText(userText);
-    // =================================
-// DETECÇÃO DE SAUDAÇÃO
-// =================================
-if (
-  t === "oi" ||
-  t === "ola" ||
-  t === "olá" ||
-  t === "opa" ||
-  t === "bom dia" ||
-  t === "boa tarde" ||
-  t === "boa noite"
-) {
-  const greeting = `Olá! Seja bem-vindo 😊
-
-Eu posso te mostrar rapidamente:
-
-• fotos da casa  
-• vídeo da casa  
-• valor da fração  
-• localização em Prado
-
-O que você gostaria de ver primeiro?`;
-
-  await sendWhatsAppText(from, greeting);
-
-  lead.history = clampHistory(
-    [
-      ...(lead.history || []),
-      { role: "assistant", content: greeting, at: nowISO() }
-    ],
-    30
-  );
-
-  lead.last_message = nowISO();
-  await upsertLead(lead);
-
-  return res.status(200).json({ ok: true, route: "greeting" });
-}
     const detect = detectIntent(t);
 
-    // verificar objeção do cliente
-const objectionReply = detectObjection(userText);
-
-if (objectionReply) {
-  await sendWhatsAppText(from, objectionReply);
-  return res.status(200).json({ ok: true, route: "objection" });
-}
-    
-    // salvar semanas desejadas pelo cliente
-const desiredWeeks = detectDesiredWeeks(userText);
-
-if (desiredWeeks.length) {
-  lead.desired_weeks = Array.from(
-    new Set([...(lead.desired_weeks || []), ...desiredWeeks])
-  );
-}
-
-    if (detect.price) lead.score = (lead.score || 0) + 2;
-    if (detect.invest) lead.score = (lead.score || 0) + 3;
-    if (detect.negotiation) lead.score = (lead.score || 0) + 2;
-    if (detect.buy) lead.score = (lead.score || 0) + 6;
-
-    // classificação do lead
-if (lead.score >= 12) {
-  lead.rank = "comprador";
-} else if (lead.score >= 8) {
-  lead.rank = "quente";
-} else if (lead.score >= 4) {
-  lead.rank = "interessado";
-} else if (lead.score >= 2) {
-  lead.rank = "curioso";
-} else {
-  lead.rank = "frio";
-}
-    // estágio mais inteligente
-    if (detect.buy) {
-      lead.stage = "fechamento";
-    } else if (detect.negotiation) {
-      lead.stage = "negociando";
-    } else if (lead.score >= 3) {
-      lead.stage = "interessado";
-    } else if (lead.score >= 1) {
-      lead.stage = "curioso";
-    } else {
-      lead.stage = lead.stage || "novo";
-    }
-
     // =================================
-    // HISTÓRICO USER
-    // =================================
-    lead.history = clampHistory(
-      [
-        ...(lead.history || []),
-        {
-          role: "user",
-          content: sourceLabel ? `[${sourceLabel}] ${userText}` : userText,
-          at: nowISO()
-        }
-      ],
-      30
-    );
-
-    lead.last_message = nowISO();
-    lead = await upsertLead(lead);
-
-    // =================================
-    // FLUXO DIRETO DE DOCUMENTO / ÁUDIO
-    // =================================
-    if (sourceLabel === "documento" || sourceLabel === "áudio") {
-      const handledDocProgress = await handleDocumentDrivenProgress({
-        from,
-        lead,
-        sourceLabel
-      });
-
-      if (handledDocProgress) {
-        return res.status(200).json({ ok: true, route: "document-progress" });
-      }
-    }
-
-    // =================================
-    // FLUXOS DIRETOS DE MÍDIA
+    // 🔥 PRIORIDADE ABSOLUTA (CORREÇÃO)
     // =================================
     const handledMedia = await handleDirectMediaIntent({ from, lead, detect });
     if (handledMedia) {
@@ -1054,112 +672,77 @@ if (lead.score >= 12) {
     }
 
     // =================================
-    // NEGOCIAÇÃO DIRETA
+    // SAUDAÇÃO (DEPOIS DA MÍDIA)
     // =================================
-    if (detect.negotiation && !detect.buy) {
-      const negotiationReply = buildNegotiationReply(userText, lead);
+    if (
+      t === "oi" ||
+      t === "ola" ||
+      t === "olá" ||
+      t === "bom dia" ||
+      t === "boa tarde" ||
+      t === "boa noite"
+    ) {
+      const greeting = `Olá! Seja bem-vindo 😊
 
-      if (negotiationReply) {
-        lead.history = clampHistory(
-          [
-            ...(lead.history || []),
-            { role: "assistant", content: negotiationReply, at: nowISO() }
-          ],
-          30
-        );
+Posso te mostrar:
 
-        lead.last_message = nowISO();
-        await upsertLead(lead);
+• fotos  
+• vídeo  
+• valor  
+• localização  
 
-        const parts = negotiationReply.split("\n\n");
-        for (const part of parts) {
-          if (part.trim()) {
-            await sendWhatsAppText(from, part.trim());
-          }
-        }
+O que você quer ver primeiro?`;
 
-        return res.status(200).json({ ok: true, route: "negotiation" });
+      await sendWhatsAppText(from, greeting);
+
+      return res.status(200).json({ ok: true });
+    }
+
+    // =================================
+    // OBJEÇÃO
+    // =================================
+    const objection = detectObjection(userText);
+    if (objection) {
+      await sendWhatsAppText(from, objection);
+      return res.status(200).json({ ok: true });
+    }
+
+    // =================================
+    // NEGOCIAÇÃO
+    // =================================
+    if (detect.negotiation) {
+      const reply = buildNegotiationReply(userText, lead);
+      if (reply) {
+        await sendWhatsAppText(from, reply);
+        return res.status(200).json({ ok: true });
       }
     }
 
     // =================================
-    // FLUXO DIRETO DE FECHAMENTO
+    // FECHAMENTO
     // =================================
-    const handledClosing = await handleDirectClosing({ from, lead, t });
-    if (handledClosing) {
-      return res.status(200).json({ ok: true, route: "closing" });
+    if (detect.buy) {
+      await finalizeSaleFlow(from, lead);
+      return res.status(200).json({ ok: true });
     }
 
     // =================================
-    // PROPOSTA AUTOMÁTICA
-    // Só quando houver sinal claro de compra
-    // =================================
-    if (detect.buy && !lead.proposal_sent) {
-      await sendWhatsAppText(
-        from,
-        `Perfeito 😊
-
-Vou te apresentar a condição atual da fração:
-
-Valor promocional à vista: R$ 59.890,00
-
-Ou parcelado:
-
-Entrada: R$ 7.290,00
-36x de R$ 1.600,00
-48x de R$ 1.200,00
-60x de R$ 960,00
-
-Cada fração garante 2 semanas por ano.
-
-Se fizer sentido para você, eu sigo agora com sua ficha.`
-      );
-
-      lead.proposal_sent = true;
-      lead.last_message = nowISO();
-      await upsertLead(lead);
-
-      return res.status(200).json({ ok: true, route: "proposal" });
-    }
-
-    // =================================
-    // IA CONSULTIVA
+    // IA FINAL
     // =================================
     const reply = await generateReply({ lead, userText });
 
-    if (/ficha preenchida|assine e me devolva/i.test(reply)) {
-      lead.contract_sent = true;
-      lead.signed_form_requested = true;
-    }
+    await sendWhatsAppText(from, reply);
 
-    if (/dados para pagamento|chave pix|conta corrente/i.test(reply)) {
-      lead.payment_requested = true;
-      lead.payment_proof_requested = true;
-    }
+    // =================================
+    // FOLLOW-UP AUTOMÁTICO (SALVA)
+    // =================================
+    lead.followup = lead.followup || {};
+    lead.followup.last_interaction = nowISO();
 
-    lead.history = clampHistory(
-      [
-        ...(lead.history || []),
-        { role: "assistant", content: reply, at: nowISO() }
-      ],
-      30
-    );
-
-    lead.last_message = nowISO();
     await upsertLead(lead);
 
-    // preparar follow-up automático
-lead.followup = lead.followup || {};
-lead.followup.last_interaction = nowISO();
+    return res.status(200).json({ ok: true });
 
-    const parts = reply.split("\n\n");
-    for (const part of parts) {
-      if (part.trim()) {
-        await sendWhatsAppText(from, part.trim());
-      }
-    }
-
-    return res.status(200).json({ ok: true, route: "ai" });
   } catch (err) {
     console.error("WEBHOOK ERROR:", err);
 

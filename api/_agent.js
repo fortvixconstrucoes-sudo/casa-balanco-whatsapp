@@ -62,69 +62,64 @@ function getRemainingFractions(lead) {
   }
   return TOTAL_FRACTIONS - lead.soldFractions;
 }
-const { sendWhatsAppImage, sendWhatsAppText, sendWhatsAppVideo } = require("./_wa");
 
 // =============================
-// ESTÁGIOS DO FUNIL
+// DETECÇÕES
 // =============================
 
-const stages = {
-  novo: 0,
-  curioso: 1,
-  interessado: 2,
-  avaliando: 3,
-  negociando: 4,
-  decisao: 5,
-  fechamento: 6
-};
-
-function nowISO() {
-  return new Date().toISOString();
-}
-
-function normalizeText(text = "") {
-  return text
-    .toString()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-}
-
-function clampHistory(history, max = 20) {
-  const h = Array.isArray(history) ? history : [];
-  return h.slice(-max);
-}
-
-// =============================
-// PERFIL DO CLIENTE
-// =============================
-
-function detectProfile(text = "") {
+function detectStage(text, lead) {
   const t = normalizeText(text);
 
-  if (/familia|família|filho|esposa|marido|ferias|descanso/.test(t)) {
-    return "familia";
-  }
+  if (/comprar|fechar|reservar|pagar|contrato/.test(t)) return "fechamento";
+  if (/valor|preco|parcelado/.test(t)) return "negociando";
+  if (/como funciona/.test(t)) return "avaliando";
+  if (/foto|video|imagem/.test(t)) return "interessado";
+  if (/oi|ola/.test(t)) return "curioso";
 
-  if (/investimento|renda|retorno|alugar|valorizar/.test(t)) {
-    return "investidor";
-  }
-
-  return "indefinido";
+  return lead.stage || "novo";
 }
 
 // =============================
-// ESCASSEZ REAL
+// MÍDIA
 // =============================
 
-const TOTAL_FRACTIONS = 26;
+const casaMedia = {
+  banners: [
+    "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/01_apresentacao_casa.png",
+    "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/02_area_gourmet_piscina.png",
+    "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/03_sala_cozinha.png",
+    "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/04_quartos.png",
+    "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/05_banheiros.png"
+  ],
+  video:
+    "https://vlbjnofccngoscvdnxop.supabase.co/storage/v1/object/public/banners/06_video_apresentacao.mp4"
+};
 
-function getRemainingFractions(lead) {
-  if (!lead.soldFractions) {
-    lead.soldFractions = 9;
+async function sendCasaMedia(phone) {
+  await sendWhatsAppText(phone, "Vou te mostrar a casa 👇");
+
+  for (const banner of casaMedia.banners) {
+    await sendWhatsAppImage(phone, banner);
   }
-  return TOTAL_FRACTIONS - lead.soldFractions;
+
+  await sendWhatsAppVideo(phone, casaMedia.video);
+}
+
+// =============================
+// ALERTA LEAD QUENTE
+// =============================
+
+async function alertOwner(lead, text) {
+  const ownerPhone = process.env.OWNER_PHONE;
+
+  if (!ownerPhone) return;
+
+  await sendWhatsAppText(ownerPhone, `
+🔥 LEAD QUENTE
+
+${lead.phone}
+
+${text}`);
 }
 // =============================
 // PRODUTO
@@ -181,7 +176,8 @@ E você ainda fica perto de:
 É mais que uma casa…
 é um estilo de vida.`;
 }
-// =============================
+
+  // =============================
 // VENDA INTELIGENTE
 // =============================
 

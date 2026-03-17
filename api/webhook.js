@@ -501,7 +501,11 @@ async function handleDirectMediaIntent({ from, lead, detect }) {
 
   // PRIORIDADE TOTAL
   if (detect.photos) {
-    await sendWhatsAppText(from, "Vou te mostrar as fotos da casa 👇");
+    await sendWhatsAppText(from, `Olha isso com calma 👇
+
+Imagina você aqui… sem pressa, só aproveitando.
+
+É exatamente essa experiência que essa casa entrega.`);
     await sendAllBanners(from);
 
     lead.sent_photos = true;
@@ -512,7 +516,9 @@ async function handleDirectMediaIntent({ from, lead, detect }) {
   }
 
   if (detect.video) {
-    await sendWhatsAppText(from, "Vou te mostrar o vídeo da casa 👇");
+    await sendWhatsAppText(from, `Vou te mostrar um vídeo rápido 👇
+
+Presta atenção na sensação que esse lugar passa…`);
 
     try {
       await sendWhatsAppVideo(from, CASA_VIDEO_URL);
@@ -525,16 +531,22 @@ async function handleDirectMediaIntent({ from, lead, detect }) {
   }
 
   if (detect.price) {
-    await sendWhatsAppText(
-      from,
-      `Hoje a fração está:
+    await sendWhatsAppText(from, `Hoje você pode garantir sua fração por:
 
-À vista: R$ 59.890  
-ou parcelado com entrada de R$ 7.290.
+À vista: R$ 59.890
 
-Você prefere qual condição?`
-    );
+Com isso você tem 2 semanas por ano, todos os anos.
 
+Sem se preocupar com hotel ou aluguel.
+
+E quem entra à vista agora escolhe primeiro as melhores semanas.`);
+
+    await sendWhatsAppText(from, `A maioria das pessoas que entra aqui não é pelo preço…
+
+É pela decisão de ter isso garantido todos os anos.`);
+
+    await sendWhatsAppText(from, `Me diz… você se imaginou mais usando com a família ou também como investimento?`);
+    
     return true;
   }
 
@@ -682,16 +694,17 @@ module.exports = async (req, res) => {
       t === "boa tarde" ||
       t === "boa noite"
     ) {
-      const greeting = `Olá! Seja bem-vindo 😊
+      const greeting = `Olá, tudo bem? 😊
 
-Posso te mostrar:
+Essa casa tem algo diferente…
 
-• fotos  
-• vídeo  
-• valor  
-• localização  
+Não é só uma casa de praia.
 
-O que você quer ver primeiro?`;
+É um lugar pronto pra você viver momentos com quem importa.
+
+E hoje ainda temos algumas frações disponíveis.
+
+Quer dar uma olhada rápida?`;
 
       await sendWhatsAppText(from, greeting);
 

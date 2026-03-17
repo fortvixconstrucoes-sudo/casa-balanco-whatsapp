@@ -530,26 +530,6 @@ Presta atenção na sensação que esse lugar passa…`);
     return true;
   }
 
-  if (detect.price) {
-    await sendWhatsAppText(from, `Hoje você pode garantir sua fração por:
-
-À vista: R$ 59.890
-
-Com isso você tem 2 semanas por ano, todos os anos.
-
-Sem se preocupar com hotel ou aluguel.
-
-E quem entra à vista agora escolhe primeiro as melhores semanas.`);
-
-    await sendWhatsAppText(from, `A maioria das pessoas que entra aqui não é pelo preço…
-
-É pela decisão de ter isso garantido todos os anos.`);
-
-    await sendWhatsAppText(from, `Me diz… você se imaginou mais usando com a família ou também como investimento?`);
-    
-    return true;
-  }
-
   if (detect.fullMedia) {
     await sendAllBanners(from);
     await sendWhatsAppVideo(from, CASA_VIDEO_URL);
@@ -678,10 +658,11 @@ module.exports = async (req, res) => {
     // =================================
     // 🔥 PRIORIDADE ABSOLUTA (CORREÇÃO)
     // =================================
-    const handledMedia = await handleDirectMediaIntent({ from, lead, detect });
-    if (handledMedia) {
-      return res.status(200).json({ ok: true, route: "media" });
-    }
+   let mediaHandled = false;
+
+if (detect.photos || detect.video) {
+  mediaHandled = await handleDirectMediaIntent({ from, lead, detect });
+}
 
     // =================================
 // 🔥 TRATAMENTO DE NÚMERO DE PESSOAS

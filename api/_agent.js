@@ -337,8 +337,14 @@ function buildRecoveryMessage() {
 // =============================
 
 module.exports = {
+  // funções principais
   generateReply,
   sendCasaMedia,
+
+  // follow-up
   buildFollowUp,
-  buildRecoveryMessage
+  buildRecoveryMessage,
+
+  // 🔥 ADICIONE ISSO AQUI
+  normalizeText
 };

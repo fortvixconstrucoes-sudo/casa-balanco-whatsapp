@@ -684,6 +684,33 @@ module.exports = async (req, res) => {
     }
 
     // =================================
+// 🔥 TRATAMENTO DE NÚMERO DE PESSOAS
+// =================================
+if (/^\d{1,2}$/.test(t)) {
+  const people = parseInt(t);
+
+  if (people <= 6) {
+    await sendWhatsAppText(from, `Perfeito 😊
+
+Até ${people} pessoas fica super confortável.
+
+É exatamente o perfil da casa.
+
+Você costuma viajar mais em feriados ou férias?`);
+  } else {
+    await sendWhatsAppText(from, `Perfeito 😊
+
+A casa foi pensada para até 6 pessoas com conforto.
+
+Mas muita gente organiza rodízio entre família e amigos.
+
+Como você imagina usar? Mais família ou dividir com alguém?`);
+  }
+
+  return res.status(200).json({ ok: true });
+}
+    
+    // =================================
     // SAUDAÇÃO (DEPOIS DA MÍDIA)
     // =================================
     if (

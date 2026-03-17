@@ -283,6 +283,54 @@ Use escassez, valor e condução leve.
 
   return await callOpenAI({ system, messages });
 }
+// =============================
+// FOLLOW-UP (RESTAURADO)
+// =============================
+
+function buildFollowUp(lead) {
+  const stage = lead.stage;
+
+  if (stage === "curioso") {
+    return "Você chegou a ver as imagens da Casa Balanço do Mar?";
+  }
+
+  if (stage === "interessado") {
+    return "O que achou da casa? 😊";
+  }
+
+  if (stage === "avaliando") {
+    return "Quer que eu te explique de forma simples como funciona?";
+  }
+
+  if (stage === "negociando") {
+    return "Você já pensou se faz mais sentido à vista ou parcelado?";
+  }
+
+  if (stage === "decisao") {
+    return "Se fizer sentido, posso te ajudar a garantir sua fração agora.";
+  }
+
+  if (stage === "fechamento") {
+    return "Posso te enviar a ficha pronta para assinatura.";
+  }
+
+  return "Só passando pra saber se conseguiu ver as informações 😊";
+}
+
+// =============================
+// RECOVERY (RESTAURADO)
+// =============================
+
+function buildRecoveryMessage() {
+  const msgs = [
+    "Muita gente começa olhando e depois decide garantir.",
+    "Se quiser posso te mostrar novamente a casa 😊",
+    "Posso te ajudar a entender melhor como funciona.",
+    "Se fizer sentido, retomamos de onde paramos."
+  ];
+
+  return msgs[Math.floor(Math.random() * msgs.length)];
+}
 
 // =============================
 // EXPORT

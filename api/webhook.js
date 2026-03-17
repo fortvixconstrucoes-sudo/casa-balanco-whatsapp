@@ -514,46 +514,19 @@ Assim fica mais fácil decidir.`;
 // =================================
 function buildNegotiationReply(userText, lead) {
   const t = normalizeText(userText);
-  const paymentMode = lead?.purchase?.
-  const greeting = `Olá! Seja bem-vindo 😊
+  const paymentMode = lead?.purchase?.payment_mode;
 
-Eu posso te mostrar como funciona a Casa Balanço do Mar em Prado.
-
-É uma casa de praia em modelo de multipropriedade onde você garante 2 semanas por ano para sua família.
-
-Quer que eu te mostre:
-
-1️⃣ fotos da casa  
-2️⃣ vídeo rápido  
-3️⃣ valores da fração`;
-
-  await sendWhatsAppText(from, greeting);
-
-  lead.history = clampHistory(
-    [
-      ...(lead.history || []),
-      { role: "assistant", content: greeting, at: nowISO() }
-    ],
-    30
-  );
-
-  lead.last_message = nowISO();
-  await upsertLead(lead);
-
-  return res.status(200).json({ ok: true, route: "greeting" });
-}
-  
-if (
-t.includes("a vista") ||
-t.includes("avista") ||
-t.includes("desconto") ||
-t.includes("beneficio") ||
-t.includes("benefício") ||
-t.includes("vantagem") ||
-t.includes("valor") ||
-t.includes("preco") ||
-t.includes("preço")
-)
+  if (
+    t.includes("a vista") ||
+    t.includes("avista") ||
+    t.includes("desconto") ||
+    t.includes("beneficio") ||
+    t.includes("benefício") ||
+    t.includes("vantagem") ||
+    t.includes("valor") ||
+    t.includes("preco") ||
+    t.includes("preço")
+  ) {
     return `Perfeito 😊
 
 Hoje a fração da Casa Balanço do Mar está nesta condição:
@@ -562,35 +535,23 @@ Hoje a fração da Casa Balanço do Mar está nesta condição:
 
 Ou parcelado com entrada de R$ 7.290.
 
-Muita gente compara com alugar casa de praia.
-
-Mas aqui você garante duas semanas por ano em uma casa completa para sua família.
-
-Quem garante à vista entra em vantagens exclusivas:
+Quem garante à vista recebe:
 
 ✔ desconto imediato de R$ 6.000  
 ✔ prioridade na escolha das semanas  
-✔ garantia da fração antes de novas valorizações  
+✔ garantia antes de valorização  
 
-Além disso temos um bônus especial:
+🎁 Bônus especial:
+2 diárias extras em finais de semana  
+até setembro de 2026.
 
-✔ 2 diárias extras em finais de semana  
-válidas até setembro de 2026.
+São apenas 26 frações.
 
-Outro ponto importante:
-
-A casa possui apenas 26 frações.
-
-Quem entra primeiro tem mais liberdade para escolher suas semanas no calendário anual.
-
-A maioria dos clientes decide entre entrar à vista ou parcelar para diluir o investimento.
-
-Qual dessas duas opções faria mais sentido para você?`;
+Você prefere à vista ou parcelado?`;
+  }
 
   if (t.includes("parcelado") || paymentMode === "parcelado") {
-  return `Perfeito 😊
-
-Hoje temos três formas de parcelamento:
+    return `Perfeito 😊
 
 Entrada: R$ 7.290
 
@@ -598,26 +559,19 @@ Entrada: R$ 7.290
 48x de R$ 1.200  
 60x de R$ 960  
 
-Qual dessas parcelas ficaria mais confortável para você?`;
-}
-  
-if (
-  t.includes("acho que sim") ||
-  t.includes("quero") ||
-  t.includes("vou fechar") ||
-  t.includes("vamos fechar") ||
-  t.includes("vou pegar") ||
-  t.includes("vou comprar")
-) {
-  return `Perfeito 😊
+Qual dessas opções fica melhor pra você?`;
+  }
 
-Então vamos garantir sua fração.
+  if (
+    t.includes("quero") ||
+    t.includes("vou fechar") ||
+    t.includes("vou comprar")
+  ) {
+    return `Perfeito 😊
 
-Agora preciso apenas de alguns dados para preencher sua ficha de reserva.
+Vamos garantir sua fração.
 
-Assim que eu montar, te envio para conferência e assinatura.
-
-Pode me enviar:
+Me envie:
 
 • nome completo  
 • CPF  
@@ -625,8 +579,9 @@ Pode me enviar:
 • data de nascimento  
 • profissão  
 • endereço completo`;
-}
-  if (t.includes("tem desconto a vista") || t.includes("tem desconto à vista")) {
+  }
+
+if (t.includes("tem desconto a vista") || t.includes("tem desconto à vista")) {
     return `Hoje a condição promocional mais enxuta já é a do à vista 😊
 
 Ela foi pensada justamente para quem quer entrar com o menor custo total e garantir a fração de forma imediata.

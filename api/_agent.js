@@ -642,5 +642,12 @@ module.exports = {
   processMessage,
   buildFollowUp,
   sendMediaPack,
-  normalizeText // 👈 ESSENCIAL
+  generateReply,
+  nowISO,
+  clampHistory,
+  normalizeText, // 👈 AQUI ESTÁ A CORREÇÃO
+  buildContractFormText,
+  buildPaymentDataMessage,
+  buildMissingDataMessage,
+  mergeBuyerDataFromText
 };

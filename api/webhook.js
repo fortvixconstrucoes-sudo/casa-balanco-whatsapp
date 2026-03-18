@@ -732,13 +732,18 @@ Quer dar uma olhada rápida?`;
     // NEGOCIAÇÃO
     // =================================
     if (detect.negotiation) {
-      const reply = buildNegotiationReply(userText, lead);
-      if (reply) {
-        await sendWhatsAppText(from, reply);
-        return res.status(200).json({ ok: true });
-      }
-    }
 
+  if (t.includes("vista") || t.includes("avista")) {
+    await sendWhatsAppText(from, buildCashBenefitsReply());
+    return res.status(200).json({ ok: true });
+  }
+
+  const reply = buildNegotiationReply(userText, lead);
+  if (reply) {
+    await sendWhatsAppText(from, reply);
+    return res.status(200).json({ ok: true });
+  }
+}
     // =================================
     // FECHAMENTO
     // =================================

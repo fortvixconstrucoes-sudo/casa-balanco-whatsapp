@@ -657,6 +657,61 @@ lead.last_topic = lead.last_topic || null;
     lead = applyManualFieldExtraction(lead, userText);
 
     const t = normalizeText(userText);
+    
+    // =================================
+// 🧠 CONTINUIDADE INTELIGENTE
+// =================================
+if (lead.last_topic) {
+
+  if (
+    t === "sim" ||
+    t === "ok" ||
+    t === "blz" ||
+    t === "quero" ||
+    t === "manda" ||
+    t.length <= 10
+  ) {
+
+    switch (lead.last_topic) {
+
+      case "payment_options":
+        await sendWhatsAppText(from, `Boa 👇
+
+Entrada: R$ 7.290
+
+36x de R$ 1.600  
+48x de R$ 1.200  
+60x de R$ 960  
+
+Qual você acha que encaixa melhor pra você?`);
+        return res.status(200).json({ ok: true });
+
+      case "cash_benefits":
+        await sendWhatsAppText(from, `Olha, sendo direto 👇
+
+quem entra à vista pega as melhores semanas.
+
+Se fizer sentido, já deixo reservado no seu nome agora.`);
+        return res.status(200).json({ ok: true });
+
+      case "negotiation":
+        await sendWhatsAppText(from, `Me diz uma coisa rápida:
+
+você quer pagar menos no total  
+ou prefere parcela mais leve?`);
+        return res.status(200).json({ ok: true });
+
+      case "closing":
+        await sendWhatsAppText(from, `Perfeito 😊
+
+me passa seu nome completo rapidinho
+
+já deixo sua pré-reserva pronta aqui`);
+        return res.status(200).json({ ok: true });
+    }
+  }
+}
+    
     const detect = detectIntent(t);
 
     // =================================
@@ -736,14 +791,17 @@ Quer dar uma olhada rápida?`;
     // NEGOCIAÇÃO
     // =================================
     if (detect.negotiation) {
+      lead.last_topic = "negotiation";
 
   if (t.includes("vista") || t.includes("avista")) {
+    lead.last_topic = "cash_benefits";
     await sendWhatsAppText(from, buildCashBenefitsReply());
     return res.status(200).json({ ok: true });
   }
 
   const reply = buildNegotiationReply(userText, lead);
   if (reply) {
+   lead.last_topic = "payment_options";
     await sendWhatsAppText(from, reply);
     return res.status(200).json({ ok: true });
   }
@@ -752,6 +810,7 @@ Quer dar uma olhada rápida?`;
     // FECHAMENTO
     // =================================
     if (detect.buy) {
+      lead.last_topic = "closing";
       await finalizeSaleFlow(from, lead);
       return res.status(200).json({ ok: true });
     }

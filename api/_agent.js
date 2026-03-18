@@ -87,6 +87,37 @@ function updateLeadState(lead, text) {
   };
 }
 
+
+function buildCashBenefitsReply() {
+  return `Sim — e aqui é onde faz mais sentido 👇
+
+Quando você paga à vista, você entra na melhor condição do projeto:
+
+1️⃣ 💰 *Desconto real*
+Você já entra economizando R$ 6.000 direto na compra.
+
+2️⃣ 🏖️ *Uso imediato*
+Já pode usar, emprestar ou até alugar sua fração.
+
+3️⃣ 📈 *Valorização*
+Você entra no início… conforme as frações acabam, o valor sobe.
+
+4️⃣ 🔁 *Possibilidade de renda*
+Muitos proprietários usam as semanas para gerar renda com aluguel de temporada.
+
+5️⃣ 🧠 *Tranquilidade total*
+Sem parcelas, sem compromisso futuro — só aproveitar.
+
+6️⃣ 🔥 *Prioridade nas melhores semanas*
+Quem fecha primeiro escolhe melhor no sistema rotativo.
+
+Hoje estamos com poucas frações disponíveis.
+
+Se fizer sentido pra você, consigo garantir essa condição agora.
+
+Você quer seguir à vista ou prefere ver parcelado também?`;
+}
+
 // =============================
 // FECHAMENTO AGRESSIVO
 // =============================

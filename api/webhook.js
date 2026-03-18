@@ -604,7 +604,11 @@ module.exports = async (req, res) => {
     }
 
     let lead = await getLeadByPhone(from);
-
+// =================================
+// 🧠 CONTEXTO DE CONVERSA
+// =================================
+lead.last_topic = lead.last_topic || null;
+    
     if (!lead) {
       lead = {
         phone: from,

@@ -89,33 +89,35 @@ function updateLeadState(lead, text) {
 
 
 function buildCashBenefitsReply() {
-  return `Sim — e aqui é onde faz mais sentido 👇
+  return `Sim — e aqui está o que realmente faz diferença 👇
 
-Quando você paga à vista, você entra na melhor condição do projeto:
+Quando você fecha à vista, você entra na melhor condição do projeto:
 
-1️⃣ 💰 *Desconto real*
-Você já entra economizando R$ 6.000 direto na compra.
+1️⃣ 💰 *Desconto direto*
+Você já entra com valor reduzido.
 
-2️⃣ 🏖️ *Uso imediato*
-Já pode usar, emprestar ou até alugar sua fração.
+2️⃣ 🗓️ *Prioridade no calendário*
+Você escolhe antes as melhores semanas (feriados, alta temporada).
 
-3️⃣ 📈 *Valorização*
-Você entra no início… conforme as frações acabam, o valor sobe.
+3️⃣ 🎁 *Experiência imediata*
+Você ganha 2 dias (final de semana) para já viver a casa até setembro de 2026.
 
-4️⃣ 🔁 *Possibilidade de renda*
-Muitos proprietários usam as semanas para gerar renda com aluguel de temporada.
+4️⃣ 📈 *Valorização*
+As frações estão acabando — quem entra agora compra mais barato.
 
-5️⃣ 🧠 *Tranquilidade total*
-Sem parcelas, sem compromisso futuro — só aproveitar.
+5️⃣ 🔁 *Possibilidade de renda*
+Pode usar, emprestar ou alugar suas semanas.
 
-6️⃣ 🔥 *Prioridade nas melhores semanas*
-Quem fecha primeiro escolhe melhor no sistema rotativo.
+6️⃣ 🧠 *Zero preocupação*
+Sem parcelas, sem compromisso futuro.
+
+—
 
 Hoje estamos com poucas frações disponíveis.
 
-Se fizer sentido pra você, consigo garantir essa condição agora.
+Se fizer sentido pra você, consigo segurar uma fração agora nessas condições.
 
-Você quer seguir à vista ou prefere ver parcelado também?`;
+Quer que eu reserve uma pra você sem compromisso?`;
 }
 
 // =============================

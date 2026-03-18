@@ -641,5 +641,6 @@ async function sendMediaPack(from) {
 module.exports = {
   processMessage,
   buildFollowUp,
-  sendMediaPack
+  sendMediaPack,
+  normalizeText // 👈 ESSENCIAL
 };
